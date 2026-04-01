@@ -1,0 +1,265 @@
+package redis
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+)
+
+type Redis interface {
+	Set(ctx context.Context, key string, value any, exp time.Duration) error
+	IncInt64(ctx context.Context, key string, exp time.Duration) (int64, error)
+	IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error)
+	IncFloat64(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error)
+	Stop(ctx context.Context) error
+	SetIfNotExist(ctx context.Context, key string, value any, exp time.Duration) error
+	Delete(ctx context.Context, keys ...string) error
+	Get(ctx context.Context, key string) (string, error)
+	GetInt64(ctx context.Context, key string) (int64, error)
+	GetFloat64(ctx context.Context, key string) (float64, error)
+	GetBool(ctx context.Context, key string) (bool, error)
+	GetJSON(ctx context.Context, key string, dest any) error
+}
+
+type Pool struct {
+	*redis.Client
+	log *slog.Logger
+}
+
+func New(ctx context.Context, cfg Config, log *slog.Logger) (*Pool, error) {
+
+	const op = "core.cache.redis.New"
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:            cfg.Addr,
+		Password:        cfg.Password,
+		DB:              cfg.DB,
+		MaxRetries:      int(cfg.MaxRetries),
+		MinRetryBackoff: cfg.MinRetryBackoff,
+		MaxRetryBackoff: cfg.MaxRetryBackoff,
+		PoolSize:        cfg.PoolSize,
+		MaxIdleConns:    cfg.MaxIdleConns,
+		ConnMaxLifetime: cfg.MaxConnLifetime,
+		ConnMaxIdleTime: cfg.MaxIdleConnLifetime,
+	})
+
+	_, err := redisClient.Ping(ctx).Result()
+
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return &Pool{
+		Client: redisClient,
+		log:    log,
+	}, nil
+
+}
+
+func (p *Pool) Set(ctx context.Context, key string, value any, exp time.Duration) error {
+
+	err := p.Client.Set(ctx, key, value, exp).Err()
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func (p *Pool) SetIfNotExist(ctx context.Context, key string, value any, exp time.Duration) error {
+
+	err := p.Client.SetArgs(ctx, key, value, redis.SetArgs{
+		Mode: "NX",
+		TTL:  exp,
+	}).Err()
+
+	if err != nil {
+		if err == redis.Nil {
+			return ErrKeyExists
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (p *Pool) Get(ctx context.Context, key string) (string, error) {
+
+	value, err := p.Client.Get(ctx, key).Result()
+
+	if err != nil {
+		if err == redis.Nil {
+			return "", ErrKeyNotExists
+		}
+		return "", err
+	}
+	return value, nil
+}
+
+func (p *Pool) GetInt64(ctx context.Context, key string) (int64, error) {
+
+	value, err := p.Client.Get(ctx, key).Int64()
+
+	if err != nil {
+		if err == redis.Nil {
+			return 0, ErrKeyNotExists
+		}
+		return 0, err
+	}
+	return value, nil
+}
+
+func (p *Pool) GetBool(ctx context.Context, key string) (bool, error) {
+
+	value, err := p.Client.Get(ctx, key).Bool()
+
+	if err != nil {
+		if err == redis.Nil {
+			return false, ErrKeyNotExists
+		}
+		return false, err
+	}
+	return value, nil
+}
+
+func (p *Pool) GetFloat64(ctx context.Context, key string) (float64, error) {
+
+	value, err := p.Client.Get(ctx, key).Float64()
+
+	if err != nil {
+		if err == redis.Nil {
+			return 0, ErrKeyNotExists
+		}
+		return 0, err
+	}
+	return value, nil
+}
+
+func (p *Pool) GetJSON(ctx context.Context, key string, dest any) error {
+
+	value, err := p.Client.Get(ctx, key).Bytes()
+
+	if err != nil {
+		if err == redis.Nil {
+			return ErrKeyNotExists
+		}
+		return err
+	}
+
+	err = json.Unmarshal(value, dest)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *Pool) Delete(ctx context.Context, keys ...string) error {
+
+	if err := p.Client.Del(ctx, keys...).Err(); err != nil {
+		return err
+	}
+
+	return nil
+
+}
+
+func (p *Pool) IncInt64(ctx context.Context, key string, exp time.Duration) (int64, error) {
+	newInt, err := p.Client.Incr(ctx, key).Result()
+
+	if err != nil {
+		return 0, err
+	}
+
+	if newInt == 1 && exp > 0 {
+		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
+			return 0, err
+		}
+	}
+
+	return newInt, nil
+}
+
+func (p *Pool) IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error) {
+
+	newInt, err := p.Client.IncrBy(ctx, key, incr).Result()
+
+	if err != nil {
+		return 0, err
+	}
+
+	if newInt == incr && exp > 0 {
+		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
+			return 0, err
+		}
+	}
+
+	return newInt, nil
+}
+
+func (p *Pool) IncFloat64(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error) {
+
+	newFloat, err := p.Client.IncrByFloat(ctx, key, incr).Result()
+
+	if err != nil {
+		return 0, err
+	}
+
+	if newFloat == incr && exp > 0 {
+		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
+			return 0, err
+		}
+	}
+
+	return newFloat, nil
+}
+
+func (r *Pool) Stop(ctx context.Context) error {
+
+	const op = "core.cache.redis.Pool.Stop"
+
+	done := make(chan error, 1)
+
+	go func() {
+		err := r.Client.Close()
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			return fmt.Errorf("%s: %w", op, err)
+		}
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("%s: %w", op, ctx.Err())
+	}
+}
+
+/*
+TODO: atomic inc?
+var incrByAtomic = redis.NewScript(`
+    local val = redis.call("INCRBY", KEYS[1], ARGV[1])
+    if val == tonumber(ARGV[1]) then
+        redis.call("EXPIRE", KEYS[1], ARGV[2])
+    end
+    return val
+`)
+
+func (p *Pool) IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error) {
+    // Выполняем скрипт атомарно на стороне Redis
+    // ARGV[2] передаем в секундах
+    res, err := incrByAtomic.Run(ctx, p.Client, []string{key}, incr, int(exp.Seconds())).Int64()
+    if err != nil {
+        return 0, err
+    }
+    return res, nil
+}
+*/
