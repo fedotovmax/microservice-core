@@ -18,6 +18,8 @@ func connectWithRetries(
 
 ) (*pgxpool.Pool, error) {
 
+	const op = "core.db.postgresql.pgx.connectWithRetries"
+
 	conn := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		config.User,
@@ -29,7 +31,7 @@ func connectWithRetries(
 	parsedConfig, err := pgxpool.ParseConfig(conn)
 
 	if err != nil {
-		return nil, fmt.Errorf("invalid postgres pgx config, cannot parse connection string: %w", err)
+		return nil, fmt.Errorf("%s: invalid postgres pgx config, cannot parse connection string: %w", op, err)
 	}
 
 	parsedConfig.MaxConns = int32(config.MaxConns)
@@ -68,12 +70,12 @@ func connectWithRetries(
 		case <-time.After(delay):
 		case <-ctx.Done():
 			constructorCloseConnection(closeCtx, db)
-			return nil, ctx.Err()
+			return nil, fmt.Errorf("%s: %w", op, ctx.Err())
 		}
 		delay = min(time.Duration(float64(delay)*backoffFactor), maxDelay)
 	}
 	constructorCloseConnection(closeCtx, db)
-	return nil, fmt.Errorf("connection to postgres failed after %d attempts: %w", config.MaxRetries, lastPingError)
+	return nil, fmt.Errorf("%s: connection to postgres failed after %d attempts: %w", op, config.MaxRetries, lastPingError)
 }
 
 func constructorCloseConnection(ctx context.Context, db *pgxpool.Pool) {
@@ -88,8 +90,6 @@ func constructorCloseConnection(ctx context.Context, db *pgxpool.Pool) {
 		defer close(done)
 		db.Close()
 	}()
-
-	//TODO: log if failed
 
 	select {
 	case <-done:

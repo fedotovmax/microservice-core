@@ -28,6 +28,9 @@ func New(c Config, log logger.Logger) *HTTPServer {
 }
 
 func (s *HTTPServer) Start(ctx context.Context) error {
+
+	const op = "core.transport.http.server.HTTPServer.Start"
+
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.config.Port),
 		Handler: s.chiRouter.mux,
@@ -53,7 +56,7 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 	case err := <-signal:
 
 		if err != nil {
-			return fmt.Errorf("failed to start HTTP server: %w", err)
+			return fmt.Errorf("%s: failed to start HTTP server: %w", op, err)
 		}
 
 	case <-ctx.Done():
@@ -68,10 +71,10 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 			forceErr := srv.Close()
 
 			if forceErr != nil {
-				return fmt.Errorf("failed to shutdown HTTP server: %w, also failed to force close: %v", err, forceErr)
+				return fmt.Errorf("%s: failed to shutdown HTTP server: %w, also failed to force close: %v", op, err, forceErr)
 			}
 
-			return fmt.Errorf("failed to shutdown HTTP server, but closed forcibly: %w: %v", ErrServerClosedForcibly, err)
+			return fmt.Errorf("%s: failed to shutdown HTTP server, but closed forcibly: %w: %v", op, ErrServerClosedForcibly, err)
 
 		}
 

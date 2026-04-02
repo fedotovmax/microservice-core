@@ -7,6 +7,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
+// TODO: validate
 type Config struct {
 	Timeout             time.Duration `envconfig:"TIMEOUT" required:"true"`
 	RetryWaitFrom       time.Duration `envconfig:"RETRY_WAIT_FROM" default:"5s"`
@@ -23,10 +24,13 @@ type Config struct {
 }
 
 func NewConfig() (Config, error) {
+
+	const op = "core.db.postgresql.pgx.NewConfig"
+
 	var config Config
 
 	if err := envconfig.Process("POSTGRES", &config); err != nil {
-		return Config{}, fmt.Errorf("error when parse postgres env variables: %w", err)
+		return Config{}, fmt.Errorf("%s: error when parse postgres env variables: %w", op, err)
 	}
 
 	return config, nil

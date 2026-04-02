@@ -34,7 +34,7 @@ func (h *HTTPResponseHandler) HandlePanic(p any, msg string) {
 
 	l := h.log.With(logger.String("op", op))
 
-	err := fmt.Errorf("unexpected panic: %v", p)
+	err := fmt.Errorf("%s: unexpected panic: %v", op, p)
 
 	l.Error(msg, logger.Err(err))
 

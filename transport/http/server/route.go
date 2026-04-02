@@ -21,6 +21,7 @@ func (m Method) String() string {
 }
 
 func (m Method) Validate() bool {
+
 	switch m {
 	case MethodGet, MethodPost, MethodDelete, MethodPut, MethodPatch:
 		return true
