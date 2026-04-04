@@ -14,21 +14,14 @@ const backoffFactor = 2
 func connectWithRetries(
 
 	ctx context.Context,
-	config Config,
+	config Base,
+	dsn string,
 
 ) (*pgxpool.Pool, error) {
 
 	const op = "core.db.postgresql.pgx.connectWithRetries"
 
-	conn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		config.User,
-		config.Password,
-		config.Host,
-		config.Port,
-		config.Database,
-	)
-	parsedConfig, err := pgxpool.ParseConfig(conn)
+	parsedConfig, err := pgxpool.ParseConfig(dsn)
 
 	if err != nil {
 		return nil, fmt.Errorf("%s: invalid postgres pgx config, cannot parse connection string: %w", op, err)

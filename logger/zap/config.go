@@ -18,7 +18,7 @@ func (l Level) Validate() error {
 	case LevelDebug, LevelInfo, LevelWarning, LevelError, LevelPanic, LevelFatal:
 		return nil
 	default:
-		return fmt.Errorf("%s: %w", op, ErrInvalidLogLevel())
+		return fmt.Errorf("%s: %w", op, InvalidLogLevelError(l))
 	}
 }
 
@@ -43,7 +43,7 @@ func (e Env) Validate() error {
 	case EnvDevelopment, EnvProduction:
 		return nil
 	default:
-		return fmt.Errorf("%s: %w", op, ErrInvalidEnv())
+		return fmt.Errorf("%s: %w", op, InvalidEnvError(e))
 	}
 }
 
@@ -53,8 +53,8 @@ const (
 )
 
 type LogFolder struct {
-	Enable bool   `envconfig:"ENABLE" default:"false"`
-	Path   string `envconfig:"PATH"`
+	Enable bool   `envconfig:"LOGGER_LOG_FOLDER_ENABLE" default:"false"`
+	Path   string `envconfig:"LOGGER_LOG_FOLDER_PATH" default:""`
 }
 
 func (f LogFolder) Validate() error {
@@ -68,9 +68,9 @@ func (f LogFolder) Validate() error {
 }
 
 type Config struct {
-	Level     Level     `envconfig:"LEVEL" default:"debug"`
-	LogFolder LogFolder `envconfig:"LOG_FOLDER"`
-	Env       Env       `envconfig:"ENV" default:"development"`
+	LogFolder LogFolder
+	Level     Level `envconfig:"LOGGER_LEVEL" default:"debug"`
+	Env       Env   `envconfig:"LOGGER_ENV" default:"development"`
 }
 
 func (c Config) Validate() error {
@@ -102,14 +102,9 @@ func NewConfig() (Config, error) {
 
 	var config Config
 
-	err := envconfig.Process("LOGGER", &config)
+	err := envconfig.Process("", &config)
 	if err != nil {
 		return Config{}, fmt.Errorf("%s: error when parse logger env variables: %w", op, err)
-	}
-
-	err = config.Validate()
-	if err != nil {
-		return Config{}, fmt.Errorf("%s: error when validate logger config: %w", op, err)
 	}
 
 	return config, nil

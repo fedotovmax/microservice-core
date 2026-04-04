@@ -19,21 +19,36 @@ type Logger struct {
 
 func New(config Config) (logger.Logger, error) {
 
+	const op = "core.logger.zap.New"
+
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
+	}
+
 	zapLevel := zap.NewAtomicLevel()
 
 	if err := zapLevel.UnmarshalText([]byte(config.Level)); err != nil {
-		return nil, ErrInvalidLogLevel()
+		return nil, fmt.Errorf("%s: %w", op, InvalidLogLevelError(config.Level))
 	}
 
 	if config.LogFolder.Enable {
-		return initWithLogFolder(config, zapLevel)
+		l, err := initWithLogFolder(config, zapLevel)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
+		return l, nil
 	}
 
-	return initWithoutLogFolder(config, zapLevel)
-
+	l, err := initWithoutLogFolder(config, zapLevel)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	return l, nil
 }
 
 func (l *Logger) Stop() {
+
+	const op = "core.logger.zap.Logger.Stop"
 
 	if l.file == nil {
 		return
@@ -42,7 +57,7 @@ func (l *Logger) Stop() {
 	err := l.file.Close()
 
 	if err != nil {
-		fmt.Printf("error when close log file, please, do not use this instance for log, use stdlib after that, error: %v\n", err)
+		fmt.Printf("%s: error when close log file, please, do not use this instance for log, use stdlib after that, error: %v\n", op, err)
 	}
 }
 
@@ -133,7 +148,7 @@ func chooseEnv(env Env) (zapcore.Encoder, error) {
 		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 		encoder = zapcore.NewJSONEncoder(encoderConfig)
 	default:
-		return nil, fmt.Errorf("%s: %w", op, ErrInvalidEnv())
+		return nil, fmt.Errorf("%s: %w", op, InvalidEnvError(env))
 	}
 
 	return encoder, nil

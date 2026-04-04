@@ -25,48 +25,42 @@ type ConsumerGroup struct {
 // config.Net.WriteTimeout = 5 * time.Second
 // config.Consumer.Group.Session.Timeout = 10 * time.Second
 // config.Consumer.Group.Heartbeat.Interval = 3 * time.Second
-func NewConsumerGroup(config ConsumerGroupConfig) func() (kafka.ConsumerGroup, error) {
+func NewConsumerGroup(config ConsumerGroupConfig) (kafka.ConsumerGroup, error) {
 
 	const op = "messaging.kafka.sarama.NewConsumerGroup"
 
-	var (
-		once    sync.Once
-		c       sarama.ConsumerGroup
-		errInit error
-	)
+	err := config.Validate()
 
-	return func() (kafka.ConsumerGroup, error) {
-
-		once.Do(func() {
-			cfg := sarama.NewConfig()
-
-			cfg.Version = sarama.V4_1_0_0
-
-			cfg.Consumer.Return.Errors = true
-			cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
-			cfg.Consumer.Offsets.AutoCommit.Enable = false
-
-			cfg.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRange()}
-			cfg.Consumer.MaxProcessingTime = config.MaxProcessingTime
-
-			c, errInit = sarama.NewConsumerGroup(config.Brokers, config.GroupID, cfg)
-		})
-
-		if errInit != nil {
-			return nil, fmt.Errorf("%s: error when create consumer group instance: %w", op, errInit)
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-
-		return &ConsumerGroup{
-			ConsumerGroup: c,
-			isStopped:     make(chan struct{}),
-			stopCtx:       ctx,
-			stopCtxFunc:   cancel,
-			config:        config,
-		}, nil
-
+	if err != nil {
+		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
 	}
+
+	cfg := sarama.NewConfig()
+
+	cfg.Version = sarama.V4_1_0_0
+
+	cfg.Consumer.Return.Errors = true
+	cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
+	cfg.Consumer.Offsets.AutoCommit.Enable = false
+
+	cfg.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRange()}
+	cfg.Consumer.MaxProcessingTime = config.MaxProcessingTime
+
+	c, err := sarama.NewConsumerGroup(config.Brokers, config.GroupID, cfg)
+
+	if err != nil {
+		return nil, fmt.Errorf("%s: error when create consumer group instance: %w", op, err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return &ConsumerGroup{
+		ConsumerGroup: c,
+		isStopped:     make(chan struct{}),
+		stopCtx:       ctx,
+		stopCtxFunc:   cancel,
+		config:        config,
+	}, nil
 
 }
 

@@ -8,15 +8,15 @@ import (
 )
 
 type Config struct {
-	Port            int           `envconfig:"PORT" default:"8080"`
-	Host            string        `envconfig:"HOST" default:"localhost"`
-	ShutdownTimeout time.Duration `envconfig:"SHUTDOWN_TIMEOUT" default:"15s"`
+	Port            int           `envconfig:"HTTP_PORT" default:"8080"`
+	Host            string        `envconfig:"HTTP_HOST" default:"localhost"`
+	ShutdownTimeout time.Duration `envconfig:"HTTP_SHUTDOWN_TIMEOUT" default:"15s"`
 }
 
 func NewConfig() (Config, error) {
 	var config Config
 
-	if err := envconfig.Process("HTTP", &config); err != nil {
+	if err := envconfig.Process("", &config); err != nil {
 		return Config{}, fmt.Errorf("error when parse http server env variables: %w", err)
 	}
 

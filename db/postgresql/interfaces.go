@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"context"
+	"time"
 )
 
 type TxIsoLevel string
@@ -39,6 +40,16 @@ type Pool interface {
 	Executor
 	Begin(ctx context.Context) (Tx, error)
 	BeginTx(ctx context.Context, txOptions TxOptions) (Tx, error)
+	Ping(ctx context.Context) error
+	Stat() Stat
+	Stop(ctx context.Context) error
+}
+
+type ShardedPool interface {
+	GetPool(key string) Pool
+	GetPoolByIndex(index uint32) Pool
+	GetIndex(key string) uint32
+	PingAll(ctx context.Context) error
 	Stop(ctx context.Context) error
 }
 
@@ -67,4 +78,30 @@ type Row interface {
 
 type CommandTag interface {
 	RowsAffected() int64
+}
+
+type Stat interface {
+	AcquireDuration() time.Duration
+
+	AcquiredConns() int32
+
+	CanceledAcquireCount() int64
+
+	ConstructingConns() int32
+
+	EmptyAcquireCount() int64
+
+	IdleConns() int32
+
+	MaxConns() int32
+
+	TotalConns() int32
+
+	NewConnsCount() int64
+
+	MaxLifetimeDestroyCount() int64
+
+	MaxIdleDestroyCount() int64
+
+	EmptyAcquireWaitTime() time.Duration
 }

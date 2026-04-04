@@ -8,6 +8,7 @@ import (
 	"github.com/fedotovmax/microservice-core/db/tx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type pgxRows struct {
@@ -76,4 +77,8 @@ func (t *trx) Exec(ctx context.Context, sql string, args ...any) (postgresql.Com
 	}
 
 	return pgxCmdTag{cmd}, nil
+}
+
+type Stat struct {
+	*pgxpool.Stat
 }

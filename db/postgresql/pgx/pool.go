@@ -3,7 +3,6 @@ package pgx
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/fedotovmax/microservice-core/db/postgresql"
 	"github.com/jackc/pgx/v5"
@@ -14,32 +13,20 @@ type Pool struct {
 	*pgxpool.Pool
 }
 
-func New(ctx context.Context, config Config) func() (postgresql.Pool, error) {
+func New(ctx context.Context, config Config) (postgresql.Pool, error) {
 
 	const op = "core.db.postgresql.pgx.New"
 
-	var (
-		pool    *pgxpool.Pool
-		once    sync.Once
-		errInit error
-	)
-
-	return func() (postgresql.Pool, error) {
-
-		once.Do(func() {
-			pool, errInit = connectWithRetries(ctx, config)
-		})
-
-		if errInit != nil {
-			return nil, fmt.Errorf("%s: %w", op, errInit)
-		}
-
-		if pool == nil {
-			return nil, fmt.Errorf("%s: postgres connection is empty after create connection and handle connection error", op)
-		}
-
-		return &Pool{Pool: pool}, nil
+	pool, err := connectWithRetries(ctx, config.Base, config.Dsn)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+
+	if pool == nil {
+		return nil, fmt.Errorf("%s: postgres connection is empty", op)
+	}
+
+	return &Pool{Pool: pool}, nil
 
 }
 
@@ -101,6 +88,18 @@ func (p *Pool) BeginTx(ctx context.Context, txOptions postgresql.TxOptions) (pos
 	return &trx{tr}, nil
 }
 
+func (p *Pool) Stat() postgresql.Stat {
+
+	s := p.Pool.Stat()
+	return &Stat{Stat: s}
+
+}
+
+func (p *Pool) Ping(ctx context.Context) error {
+
+	return p.Pool.Ping(ctx)
+}
+
 func (p *Pool) Stop(ctx context.Context) error {
 
 	const op = "core.db.postgresql.pgx.Pool.Stop"
@@ -117,6 +116,7 @@ func (p *Pool) Stop(ctx context.Context) error {
 
 	go func() {
 		defer close(done)
+		//p.close()
 		p.Pool.Close()
 	}()
 

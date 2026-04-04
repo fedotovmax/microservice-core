@@ -10,8 +10,6 @@ import (
 	"github.com/fedotovmax/microservice-core/logger"
 )
 
-type txCtxKey struct{}
-
 type Manager struct {
 	log  logger.Logger
 	pool postgresql.Pool

@@ -2,22 +2,28 @@ package zap
 
 import "fmt"
 
-func ErrInvalidLogLevel() error {
-	return fmt.Errorf(
-		"invalid log level, supported levels: %s, %s, %s, %s, %s, %s",
+type InvalidEnvError string
+
+func (ie InvalidEnvError) Error() string {
+	return fmt.Sprintf(
+		"invalid env: %q, supported env: %s, %s",
+		string(ie),
+		EnvDevelopment,
+		EnvProduction,
+	)
+}
+
+type InvalidLogLevelError string
+
+func (ill InvalidLogLevelError) Error() string {
+	return fmt.Sprintf(
+		"invalid log level: %q, supported levels: %s, %s, %s, %s, %s, %s",
+		string(ill),
 		LevelDebug,
 		LevelInfo,
 		LevelWarning,
 		LevelError,
 		LevelPanic,
 		LevelFatal,
-	)
-}
-
-func ErrInvalidEnv() error {
-	return fmt.Errorf(
-		"invalid env, supported env: %s, %s",
-		EnvDevelopment,
-		EnvProduction,
 	)
 }

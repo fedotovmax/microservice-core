@@ -3,7 +3,6 @@ package sarama
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/IBM/sarama"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
@@ -137,53 +136,44 @@ func (p *Producer) Stop(ctx context.Context) error {
 	}
 }
 
-func NewProducer(config ProducerConfig) func() (kafka.AsyncProducer, error) {
-
+func NewProducer(config ProducerConfig) (kafka.AsyncProducer, error) {
 	const op = "messaging.kafka.sarama.NewProducer"
 
-	var (
-		once    sync.Once
-		p       sarama.AsyncProducer
-		errInit error
-	)
+	err := config.Validate()
 
-	return func() (kafka.AsyncProducer, error) {
-
-		once.Do(func() {
-
-			saramaConfig := sarama.NewConfig()
-
-			saramaConfig.Version = sarama.V4_1_0_0
-
-			saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
-
-			saramaConfig.Producer.Retry.Max = config.SendMaxRetries
-
-			saramaConfig.Producer.Retry.Backoff = config.RetryBackoff
-
-			saramaConfig.Producer.Flush.Bytes = config.BatchBytes
-
-			saramaConfig.Producer.Flush.Messages = config.BatchMessagesCount
-
-			saramaConfig.Producer.Flush.Frequency = config.BatchFrequency
-
-			saramaConfig.Producer.Return.Errors = true
-			saramaConfig.Producer.Return.Successes = true
-
-			saramaConfig.Producer.Compression = sarama.CompressionSnappy
-
-			saramaConfig.ChannelBufferSize = config.ChannelBufferSize
-
-			p, errInit = sarama.NewAsyncProducer(config.Brokers, saramaConfig)
-
-		})
-
-		if errInit != nil {
-			return nil, fmt.Errorf("%s: error when create async producer instance: %w", op, errInit)
-		}
-
-		return &Producer{p}, nil
-
+	if err != nil {
+		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
 	}
+
+	saramaConfig := sarama.NewConfig()
+
+	saramaConfig.Version = sarama.V4_1_0_0
+
+	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
+
+	saramaConfig.Producer.Retry.Max = config.SendMaxRetries
+
+	saramaConfig.Producer.Retry.Backoff = config.RetryBackoff
+
+	saramaConfig.Producer.Flush.Bytes = config.BatchBytes
+
+	saramaConfig.Producer.Flush.Messages = config.BatchMessagesCount
+
+	saramaConfig.Producer.Flush.Frequency = config.BatchFrequency
+
+	saramaConfig.Producer.Return.Errors = true
+	saramaConfig.Producer.Return.Successes = true
+
+	saramaConfig.Producer.Compression = sarama.CompressionSnappy
+
+	saramaConfig.ChannelBufferSize = config.ChannelBufferSize
+
+	p, err := sarama.NewAsyncProducer(config.Brokers, saramaConfig)
+
+	if err != nil {
+		return nil, fmt.Errorf("%s: error when create async producer instance: %w", op, err)
+	}
+
+	return &Producer{p}, nil
 
 }

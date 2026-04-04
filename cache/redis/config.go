@@ -8,24 +8,22 @@ import (
 )
 
 type Config struct {
-	MinRetryBackoff     time.Duration `envconfig:"MIN_RETRY_BACKOFF" default:"1s"`
-	MaxRetryBackoff     time.Duration `envconfig:"MAX_RETRY_BACKOFF" default:"100s"`
-	MaxConnLifetime     time.Duration `envconfig:"MAX_CONN_LIFETIME" default:"60m"`
-	MaxIdleConnLifetime time.Duration `envconfig:"MAX_IDLE_CONN_LIFETIME" default:"10m"`
-	Addr                string        `envconfig:"ADDR" required:"true"`
-	Host                string        `envconfig:"HOST" required:"true"`
-	Port                int           `envconfig:"PORT" required:"true"`
-	Password            string        `envconfig:"PASSWORD" required:"true"`
-	DB                  int           `envconfig:"DB" default:"0"`
-	MaxRetries          uint8         `envconfig:"MAX_RETRIES" default:"5"`
-	PoolSize            int           `envconfig:"POOL_SIZE" default:"20"`
-	MaxIdleConns        int           `envconfig:"MAX_IDLE_CONNECTIONS" default:"5"`
+	MaxRetryBackoff     time.Duration `envconfig:"REDIS_MAX_RETRY_BACKOFF" default:"100s"`
+	MinRetryBackoff     time.Duration `envconfig:"REDIS_MIN_RETRY_BACKOFF" default:"1s"`
+	MaxConnLifetime     time.Duration `envconfig:"REDIS_MAX_CONN_LIFETIME" default:"60m"`
+	MaxIdleConnLifetime time.Duration `envconfig:"REDIS_MAX_IDLE_CONN_LIFETIME" default:"10m"`
+	Addr                string        `envconfig:"REDIS_ADDR" required:"true"`
+	Password            string        `envconfig:"REDIS_PASSWORD" required:"true"`
+	DB                  int           `envconfig:"REDIS_DB" default:"0"`
+	MaxRetries          uint8         `envconfig:"REDIS_MAX_RETRIES" default:"5"`
+	PoolSize            int           `envconfig:"REDIS_POOL_SIZE" default:"20"`
+	MaxIdleConns        int           `envconfig:"REDIS_MAX_IDLE_CONNECTIONS" default:"5"`
 }
 
 func NewConfig() (Config, error) {
 	var config Config
 
-	if err := envconfig.Process("REDIS", &config); err != nil {
+	if err := envconfig.Process("", &config); err != nil {
 		return Config{}, fmt.Errorf("error when parse redis env variables: %w", err)
 	}
 

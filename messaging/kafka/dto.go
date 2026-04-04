@@ -1,6 +1,8 @@
 package kafka
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type FailedEvent struct {
 	id    string
@@ -108,3 +110,18 @@ func NewConsumeEvent(
 		partition: partition,
 	}
 }
+
+//TODO:
+// type Session struct {
+// }
+
+// type S interface {
+// 	Claims() map[string][]int32
+// 	MemberID() string
+// 	GenerationID() int32
+// 	MarkOffset(topic string, partition int32, offset int64, metadata string)
+// 	Commit()
+// 	ResetOffset(topic string, partition int32, offset int64, metadata string)
+// 	MarkMessage(msg *ConsumerMessage, metadata string)
+// 	Context() context.Context
+// }

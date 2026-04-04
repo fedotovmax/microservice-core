@@ -1,4 +1,4 @@
-package network
+package mail
 
 import (
 	"strings"

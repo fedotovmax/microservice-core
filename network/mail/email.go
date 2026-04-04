@@ -1,9 +1,11 @@
-package network
+package mail
 
 import (
 	"fmt"
 	"net/mail"
 	"strings"
+
+	"github.com/fedotovmax/microservice-core/network"
 )
 
 func Email(addr string) error {
@@ -22,7 +24,7 @@ func Email(addr string) error {
 		return fmt.Errorf("email too long: %s", a.Address)
 	}
 
-	if err := Hostname(parts[1]); err != nil {
+	if err := network.Hostname(parts[1]); err != nil {
 		return fmt.Errorf("invalid hostname in email: %w", err)
 	}
 

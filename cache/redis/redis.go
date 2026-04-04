@@ -15,7 +15,7 @@ type Redis interface {
 	IncInt64(ctx context.Context, key string, exp time.Duration) (int64, error)
 	IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error)
 	IncFloat64(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error)
-	Stop(ctx context.Context) error
+	IncFloat64By(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error)
 	SetIfNotExist(ctx context.Context, key string, value any, exp time.Duration) error
 	Delete(ctx context.Context, keys ...string) error
 	Get(ctx context.Context, key string) (string, error)
@@ -23,6 +23,7 @@ type Redis interface {
 	GetFloat64(ctx context.Context, key string) (float64, error)
 	GetBool(ctx context.Context, key string) (bool, error)
 	GetJSON(ctx context.Context, key string, dest any) error
+	Stop(ctx context.Context) error
 }
 
 type Pool struct {
@@ -171,55 +172,89 @@ func (p *Pool) Delete(ctx context.Context, keys ...string) error {
 
 }
 
+// Здесь мы просто пробрасываем exp как Duration дальше
 func (p *Pool) IncInt64(ctx context.Context, key string, exp time.Duration) (int64, error) {
-	newInt, err := p.Client.Incr(ctx, key).Result()
-
-	if err != nil {
-		return 0, err
-	}
-
-	if newInt == 1 && exp > 0 {
-		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
-			return 0, err
-		}
-	}
-
-	return newInt, nil
+	return p.IncInt64By(ctx, key, 1, exp)
 }
 
+// А здесь уже происходит магия конвертации
 func (p *Pool) IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error) {
 
-	newInt, err := p.Client.IncrBy(ctx, key, incr).Result()
+	// Обязательно вызываем .Milliseconds() здесь, чтобы в Lua ушло число, а не объект или строка типа "1s"
+	res, err := luaIncrInt.Run(ctx, p.Client, []string{key}, incr, exp.Milliseconds()).Int64()
 
 	if err != nil {
 		return 0, err
 	}
-
-	if newInt == incr && exp > 0 {
-		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
-			return 0, err
-		}
-	}
-
-	return newInt, nil
+	return res, nil
 }
 
-func (p *Pool) IncFloat64(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error) {
+func (p *Pool) IncFloat64(ctx context.Context, key string, exp time.Duration) (float64, error) {
+	return p.IncFloat64By(ctx, key, 1.0, exp)
+}
 
-	newFloat, err := p.Client.IncrByFloat(ctx, key, incr).Result()
+// IncFloat64By увеличивает значение ключа на произвольное дробное число
+func (p *Pool) IncFloat64By(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error) {
+
+	// Используем .Float64() для получения результата из скрипта
+	// Передаем exp.Milliseconds() в качестве второго аргумента (ARGV[2])
+	res, err := luaIncrFloat.Run(ctx, p.Client, []string{key}, incr, exp.Milliseconds()).Float64()
 
 	if err != nil {
 		return 0, err
 	}
-
-	if newFloat == incr && exp > 0 {
-		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
-			return 0, err
-		}
-	}
-
-	return newFloat, nil
+	return res, nil
 }
+
+// func (p *Pool) IncInt64(ctx context.Context, key string, exp time.Duration) (int64, error) {
+// 	newInt, err := p.Client.Incr(ctx, key).Result()
+
+// 	if err != nil {
+// 		return 0, err
+// 	}
+
+// 	if newInt == 1 && exp > 0 {
+// 		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
+// 			return 0, err
+// 		}
+// 	}
+
+// 	return newInt, nil
+// }
+
+// func (p *Pool) IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error) {
+
+// 	newInt, err := p.Client.IncrBy(ctx, key, incr).Result()
+
+// 	if err != nil {
+// 		return 0, err
+// 	}
+
+// 	if newInt == incr && exp > 0 {
+// 		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
+// 			return 0, err
+// 		}
+// 	}
+
+// 	return newInt, nil
+// }
+
+// func (p *Pool) IncFloat64(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error) {
+
+// 	newFloat, err := p.Client.IncrByFloat(ctx, key, incr).Result()
+
+// 	if err != nil {
+// 		return 0, err
+// 	}
+
+// 	if newFloat == incr && exp > 0 {
+// 		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
+// 			return 0, err
+// 		}
+// 	}
+
+// 	return newFloat, nil
+// }
 
 func (r *Pool) Stop(ctx context.Context) error {
 
@@ -242,24 +277,3 @@ func (r *Pool) Stop(ctx context.Context) error {
 		return fmt.Errorf("%s: %w", op, ctx.Err())
 	}
 }
-
-/*
-TODO: atomic inc?
-var incrByAtomic = redis.NewScript(`
-    local val = redis.call("INCRBY", KEYS[1], ARGV[1])
-    if val == tonumber(ARGV[1]) then
-        redis.call("EXPIRE", KEYS[1], ARGV[2])
-    end
-    return val
-`)
-
-func (p *Pool) IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error) {
-    // Выполняем скрипт атомарно на стороне Redis
-    // ARGV[2] передаем в секундах
-    res, err := incrByAtomic.Run(ctx, p.Client, []string{key}, incr, int(exp.Seconds())).Int64()
-    if err != nil {
-        return 0, err
-    }
-    return res, nil
-}
-*/
