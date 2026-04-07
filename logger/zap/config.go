@@ -31,25 +31,25 @@ const (
 	LevelFatal   Level = "fatal"
 )
 
-type Env string
+type Encoding string
 
-func (e Env) String() string { return string(e) }
+func (e Encoding) String() string { return string(e) }
 
-func (e Env) Validate() error {
+func (e Encoding) Validate() error {
 
-	const op = "core.logger.zap.Env.Validate"
+	const op = "core.logger.zap.Encoding.Validate"
 
 	switch e {
-	case EnvDevelopment, EnvProduction:
+	case EncodingJSON, EncodingPlainText:
 		return nil
 	default:
-		return fmt.Errorf("%s: %w", op, InvalidEnvError(e))
+		return fmt.Errorf("%s: %w", op, InvalidEncodingError(e))
 	}
 }
 
 const (
-	EnvProduction  Env = "production"
-	EnvDevelopment Env = "development"
+	EncodingPlainText Encoding = "plain-text"
+	EncodingJSON      Encoding = "json"
 )
 
 type LogFolder struct {
@@ -69,8 +69,8 @@ func (f LogFolder) Validate() error {
 
 type Config struct {
 	LogFolder LogFolder
-	Level     Level `envconfig:"LOGGER_LEVEL" default:"debug"`
-	Env       Env   `envconfig:"LOGGER_ENV" default:"development"`
+	Level     Level    `envconfig:"LOGGER_LEVEL" default:"debug"`
+	Encoding  Encoding `envconfig:"LOGGER_ENCODING" default:"plain-text"`
 }
 
 func (c Config) Validate() error {
@@ -87,7 +87,7 @@ func (c Config) Validate() error {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	err = c.Env.Validate()
+	err = c.Encoding.Validate()
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}

@@ -4,8 +4,8 @@ import "fmt"
 
 func Port(port int) error {
 
-	if port < 1 || port > 65535 {
-		return fmt.Errorf("port must be between 1 and 65535")
+	if port < 1024 || port > 65535 {
+		return fmt.Errorf("port must be between 1024 and 65535")
 	}
 
 	return nil

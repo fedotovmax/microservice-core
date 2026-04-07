@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"time"
 )
 
 type OnSuccess func(ctx context.Context, event SuccessEvent) error
@@ -9,8 +10,8 @@ type OnError func(ctx context.Context, event FailedEvent) error
 
 type AsyncProducer interface {
 	Send(ctx context.Context, event Event) error
-	HandleErrors(ctx context.Context, onError OnError)
-	HandleSuccesses(ctx context.Context, onSuccess OnSuccess)
+	HandleErrors(timeout time.Duration, onError OnError)
+	HandleSuccesses(timeout time.Duration, onSuccess OnSuccess)
 	Stop(ctx context.Context) error
 }
 

@@ -7,7 +7,7 @@ import (
 )
 
 type ShardedConfig struct {
-	Base
+	BaseConfig
 	Shards []string `envconfig:"POSTGRES_SHARDS" required:"true"`
 }
 

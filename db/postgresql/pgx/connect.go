@@ -14,7 +14,7 @@ const backoffFactor = 2
 func connectWithRetries(
 
 	ctx context.Context,
-	config Base,
+	config BaseConfig,
 	dsn string,
 
 ) (*pgxpool.Pool, error) {

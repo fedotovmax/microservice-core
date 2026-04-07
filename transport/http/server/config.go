@@ -4,13 +4,28 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/fedotovmax/microservice-core/network"
 	"github.com/kelseyhightower/envconfig"
 )
 
 type Config struct {
 	Port            int           `envconfig:"HTTP_PORT" default:"8080"`
-	Host            string        `envconfig:"HTTP_HOST" default:"localhost"`
 	ShutdownTimeout time.Duration `envconfig:"HTTP_SHUTDOWN_TIMEOUT" default:"15s"`
+}
+
+func (c Config) Validate() error {
+
+	const op = "transport.http.server.Config.Validate"
+
+	if err := network.Port(c.Port); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	if c.ShutdownTimeout < time.Second {
+		return fmt.Errorf("%s:shutdown timeout must be at least 1s", op)
+	}
+
+	return nil
 }
 
 func NewConfig() (Config, error) {

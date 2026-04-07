@@ -7,17 +7,21 @@ import (
 	"github.com/fedotovmax/microservice-core/logger"
 )
 
-func (p *Outbox) process(ctx context.Context) {
+func (p *Outbox) process() {
 
-	const op = "messaging.kafka.outbox.process"
+	const op = "core.messaging.kafka.outbox.Outbox.process"
 
 	log := p.log.With(logger.String("op", op))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	ticker := time.NewTicker(p.config.Interval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ctx.Done():
+		case <-p.stopProcessSignal:
+			cancel()
 			log.Info("event processing stopped")
 			return
 		case <-ticker.C:

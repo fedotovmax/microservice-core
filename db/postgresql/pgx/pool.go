@@ -17,7 +17,7 @@ func New(ctx context.Context, config Config) (postgresql.Pool, error) {
 
 	const op = "core.db.postgresql.pgx.New"
 
-	pool, err := connectWithRetries(ctx, config.Base, config.Dsn)
+	pool, err := connectWithRetries(ctx, config.BaseConfig, config.Dsn)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}

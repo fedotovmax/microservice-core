@@ -87,7 +87,7 @@ func initWithLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, 
 		return nil, fmt.Errorf("%s: error when create log file: %w", op, err)
 	}
 
-	encoder, err := chooseEnv(config.Env)
+	encoder, err := chooseEncoding(config.Encoding)
 
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -114,7 +114,7 @@ func initWithoutLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logge
 
 	const op = "core.logger.zap.initWithoutLogFolder"
 
-	encoder, err := chooseEnv(config.Env)
+	encoder, err := chooseEncoding(config.Encoding)
 
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -130,25 +130,25 @@ func initWithoutLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logge
 	return &Logger{Logger: l}, nil
 }
 
-func chooseEnv(env Env) (zapcore.Encoder, error) {
+func chooseEncoding(encoding Encoding) (zapcore.Encoder, error) {
 
-	const op = "core.logger.zap.chooseEnv"
+	const op = "core.logger.zap.chooseEncoding"
 
 	var (
 		encoder zapcore.Encoder
 	)
 
-	switch env {
-	case EnvDevelopment:
+	switch encoding {
+	case EncodingJSON:
 		encoderConfig := zap.NewDevelopmentEncoderConfig()
 		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 		encoder = zapcore.NewConsoleEncoder(encoderConfig)
-	case EnvProduction:
+	case EncodingPlainText:
 		encoderConfig := zap.NewProductionEncoderConfig()
 		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 		encoder = zapcore.NewJSONEncoder(encoderConfig)
 	default:
-		return nil, fmt.Errorf("%s: %w", op, InvalidEnvError(env))
+		return nil, fmt.Errorf("%s: %w", op, InvalidEncodingError(encoding))
 	}
 
 	return encoder, nil

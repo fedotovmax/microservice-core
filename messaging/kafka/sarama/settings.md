@@ -1,4 +1,0 @@
-- ReadTimeout → сколько ждём ответ (важно для commit)
-- WriteTimeout → сколько отправляем запрос
-- Session.Timeout → когда тебя выкинут из группы
-- Heartbeat.Interval → как часто ты “пингуешь” Kafka

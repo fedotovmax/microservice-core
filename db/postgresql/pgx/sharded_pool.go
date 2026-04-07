@@ -22,7 +22,7 @@ func NewSharded(ctx context.Context, config ShardedConfig) (postgresql.ShardedPo
 
 	for i, dsn := range config.Shards {
 
-		p, err := connectWithRetries(ctx, config.Base, dsn)
+		p, err := connectWithRetries(ctx, config.BaseConfig, dsn)
 		if err != nil {
 			for _, opened := range pgxpools {
 				opened.Close()

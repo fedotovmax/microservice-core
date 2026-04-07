@@ -7,15 +7,15 @@ import (
 )
 
 func (p *Outbox) handle(ctx context.Context) {
-	const op = "messaging.kafka.outbox.handle"
+	const op = "core.messaging.kafka.outbox.Outbox.handle"
 
 	log := p.log.With(logger.String("op", op))
 
-	reserveCtx, cancelReserveCtx := context.WithTimeout(ctx, p.config.OperationTimeout)
+	newCtx, cancel := context.WithTimeout(ctx, p.config.SendTimeout)
 
-	defer cancelReserveCtx()
+	defer cancel()
 
-	events, err := p.adapter.Reserve(reserveCtx, p.config.BatchLimit, p.config.ReserveDuration)
+	events, err := p.adapter.Reserve(newCtx, p.config.BatchLimit, p.config.ReserveDuration)
 
 	if err != nil {
 		log.Error("error when reserve events", logger.Err(err))
@@ -27,11 +27,8 @@ func (p *Outbox) handle(ctx context.Context) {
 		return
 	}
 
-	sendCtx, cancelSendCtx := context.WithTimeout(ctx, p.config.OperationTimeout*2)
-	defer cancelSendCtx()
-
 	for idx := range events {
-		err := p.producer.Send(sendCtx, events[idx])
+		err := p.producer.Send(newCtx, events[idx])
 
 		if err != nil {
 			log.Error("error when send event to kafka", logger.String("event_id", events[idx].GetID()), logger.Err(err))

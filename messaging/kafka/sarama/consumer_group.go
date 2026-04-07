@@ -20,6 +20,13 @@ type ConsumerGroup struct {
 	config      ConsumerGroupConfig
 }
 
+const maxJitter = time.Millisecond * 500
+
+// - ReadTimeout → сколько ждём ответ (важно для commit)
+// - WriteTimeout → сколько отправляем запрос
+// - Session.Timeout → когда тебя выкинут из группы
+// - Heartbeat.Interval → как часто ты “пингуешь” Kafka
+
 // TODO: check settings
 // config.Net.ReadTimeout = 5 * time.Second
 // config.Net.WriteTimeout = 5 * time.Second
@@ -27,7 +34,7 @@ type ConsumerGroup struct {
 // config.Consumer.Group.Heartbeat.Interval = 3 * time.Second
 func NewConsumerGroup(config ConsumerGroupConfig) (kafka.ConsumerGroup, error) {
 
-	const op = "messaging.kafka.sarama.NewConsumerGroup"
+	const op = "core.messaging.kafka.sarama.NewConsumerGroup"
 
 	err := config.Validate()
 
@@ -41,7 +48,17 @@ func NewConsumerGroup(config ConsumerGroupConfig) (kafka.ConsumerGroup, error) {
 
 	cfg.Consumer.Return.Errors = true
 	cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
-	cfg.Consumer.Offsets.AutoCommit.Enable = false
+	cfg.Consumer.Offsets.AutoCommit.Enable = true
+	cfg.Consumer.Offsets.AutoCommit.Interval = config.CommitInterval
+
+	cfg.Net.DialTimeout = config.DialTimeout
+	cfg.Net.ReadTimeout = config.ReadTimeout
+
+	cfg.Consumer.Group.Session.Timeout = config.SessionTimeout
+	cfg.Consumer.Group.Heartbeat.Interval = config.HeartbeatInterval
+	cfg.Consumer.Group.Rebalance.Timeout = config.RebalanceTimeout
+
+	cfg.Consumer.MaxWaitTime = config.MaxWaitTime
 
 	cfg.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{sarama.NewBalanceStrategyRange()}
 	cfg.Consumer.MaxProcessingTime = config.MaxProcessingTime
@@ -64,8 +81,6 @@ func NewConsumerGroup(config ConsumerGroupConfig) (kafka.ConsumerGroup, error) {
 
 }
 
-const maxJitter = time.Millisecond * 500
-
 func (c *ConsumerGroup) startRead(ctx context.Context, reader kafka.Reader) {
 
 	currentSleep := c.config.BackoffMinInterval
@@ -77,7 +92,7 @@ func (c *ConsumerGroup) startRead(ctx context.Context, reader kafka.Reader) {
 			return
 		}
 
-		err := c.Consume(ctx, c.config.Topics, &h{r: reader, commitInterval: c.config.CommitInterval, commitBatchSize: c.config.CommitBatchSize})
+		err := c.Consume(ctx, c.config.Topics, &h{r: reader, commitInterval: c.config.CommitInterval /**commitBatchSize: c.config.CommitBatchSize**/})
 
 		if err != nil {
 
@@ -163,7 +178,7 @@ func (c *ConsumerGroup) signalAllStopped() {
 
 func (c *ConsumerGroup) Stop(ctx context.Context) error {
 
-	const op = "messaging.kafka.sarama.ConsumerGroup.Stop"
+	const op = "core.messaging.kafka.sarama.ConsumerGroup.Stop"
 
 	done := make(chan error, 1)
 

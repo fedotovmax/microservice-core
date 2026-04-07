@@ -2,14 +2,14 @@ package zap
 
 import "fmt"
 
-type InvalidEnvError string
+type InvalidEncodingError string
 
-func (ie InvalidEnvError) Error() string {
+func (ie InvalidEncodingError) Error() string {
 	return fmt.Sprintf(
-		"invalid env: %q, supported env: %s, %s",
+		"invalid encoding: %q, supported encoding: %s, %s",
 		string(ie),
-		EnvDevelopment,
-		EnvProduction,
+		EncodingJSON,
+		EncodingPlainText,
 	)
 }
 

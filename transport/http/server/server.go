@@ -16,7 +16,11 @@ type HTTPServer struct {
 	config Config
 }
 
-func New(c Config, log logger.Logger) *HTTPServer {
+func New(c Config, log logger.Logger) (*HTTPServer, error) {
+
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
 
 	mux := chi.NewRouter()
 
@@ -24,7 +28,7 @@ func New(c Config, log logger.Logger) *HTTPServer {
 		chiRouter: newChiRouter(mux),
 		config:    c,
 		log:       log,
-	}
+	}, nil
 }
 
 func (s *HTTPServer) Start(ctx context.Context) error {
@@ -42,7 +46,7 @@ func (s *HTTPServer) Start(ctx context.Context) error {
 
 		defer close(signal)
 
-		s.log.Warn("starting HTTP server", logger.String("host", s.config.Host), logger.Int("port", s.config.Port))
+		s.log.Warn("starting HTTP server", logger.Int("port", s.config.Port))
 
 		err := srv.ListenAndServe()
 

@@ -3,6 +3,7 @@ package sarama
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
@@ -12,9 +13,53 @@ type Producer struct {
 	sarama.AsyncProducer
 }
 
+func NewProducer(config ProducerConfig) (kafka.AsyncProducer, error) {
+	const op = "core.messaging.kafka.sarama.NewProducer"
+
+	err := config.Validate()
+
+	if err != nil {
+		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
+	}
+
+	saramaConfig := sarama.NewConfig()
+
+	saramaConfig.Version = sarama.V4_1_0_0
+
+	// Самый надежный режим для Outbox: ждем подтверждения от всех реплик (ISR).
+	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
+
+	// Ретраи
+	saramaConfig.Producer.Retry.Max = config.SendMaxRetries
+	saramaConfig.Producer.Retry.Backoff = config.RetryBackoff
+
+	// Настройки сброса батча в сеть
+	saramaConfig.Producer.Flush.Bytes = config.BatchBytes
+	saramaConfig.Producer.Flush.Messages = config.BatchMessagesCount
+	saramaConfig.Producer.Flush.Frequency = config.BatchFrequency
+
+	saramaConfig.ChannelBufferSize = config.ChannelBufferSize
+
+	// Обязательно для HandleSuccesses и HandleErrors в Outbox
+	saramaConfig.Producer.Return.Errors = true
+	saramaConfig.Producer.Return.Successes = true
+
+	// Snappy дает отличный баланс CPU/Compression для JSON событий.
+	saramaConfig.Producer.Compression = sarama.CompressionSnappy
+
+	p, err := sarama.NewAsyncProducer(config.Brokers, saramaConfig)
+
+	if err != nil {
+		return nil, fmt.Errorf("%s: error when create async producer instance: %w", op, err)
+	}
+
+	return &Producer{p}, nil
+
+}
+
 func (p *Producer) Send(ctx context.Context, event kafka.Event) error {
 
-	const op = "messaging.kafka.sarama.Producer.Send"
+	const op = "core.messaging.kafka.sarama.Producer.Send"
 
 	msg := &sarama.ProducerMessage{
 		Topic: event.GetTopic(),
@@ -44,79 +89,60 @@ func (p *Producer) Send(ctx context.Context, event kafka.Event) error {
 	}
 }
 
-func (p *Producer) HandleErrors(ctx context.Context, onError kafka.OnError) {
+func (p *Producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 
-	const op = "messaging.kafka.sarama.Producer.HandleErrors"
+	const op = "core.messaging.kafka.sarama.Producer.HandleErrors"
 
-	for {
-		select {
-		case <-ctx.Done():
-			//TODO: log
-			return
-		case event, ok := <-p.Errors():
-			if !ok {
-				//TODO: log
-				return
-			}
-			//TODO: log what event send is failed?
+	for event := range p.Errors() {
+		metadata, ok := event.Msg.Metadata.(kafka.MessageMetadata)
 
-			metadata, ok := event.Msg.Metadata.(kafka.MessageMetadata)
+		if !ok {
+			//TODO: log maybe that metadata is not provided?
+			continue
+		}
 
-			if !ok {
-				//TODO: log maybe that metadata is not provided?
-				continue
-			}
+		failedEvent := kafka.NewFailedEvent(metadata.ID, metadata.Type, event.Err)
 
-			failedEvent := kafka.NewFailedEvent(metadata.ID, metadata.Type, event.Err)
-
-			err := onError(ctx, failedEvent)
-
-			if err != nil {
-				//TODO: log if onError callback return error
-			}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		err := onError(ctx, failedEvent)
+		cancel()
+		if err != nil {
+			continue
+			//TODO: log if onError callback return error
 		}
 	}
 }
 
-func (p *Producer) HandleSuccesses(ctx context.Context, onSuccess kafka.OnSuccess) {
+func (p *Producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSuccess) {
 
-	const op = "messaging.kafka.sarama.Producer.HandleSuccesses"
+	const op = "core.messaging.kafka.sarama.Producer.HandleSuccesses"
 
-	for {
-		select {
-		case <-ctx.Done():
-			//TODO: log
-			return
-		case event, ok := <-p.Successes():
-			if !ok {
-				//TODO: log
-				return
-			}
-			//TODO: log what event send is failed?
+	for event := range p.Successes() {
+		metadata, ok := event.Metadata.(kafka.MessageMetadata)
 
-			metadata, ok := event.Metadata.(kafka.MessageMetadata)
-
-			if !ok {
-				//TODO: log maybe that metadata is not provided?
-				continue
-			}
-
-			successEvent := kafka.NewSuccessEvent(metadata.ID, metadata.Type)
-
-			err := onSuccess(ctx, successEvent)
-
-			if err != nil {
-				//TODO: log if onError callback return error
-				continue
-			}
-			//TODO: log, event is confirmed successfully
+		if !ok {
+			//TODO: log maybe that metadata is not provided?
+			continue
 		}
+
+		successEvent := kafka.NewSuccessEvent(metadata.ID, metadata.Type)
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+
+		err := onSuccess(ctx, successEvent)
+		cancel()
+		if err != nil {
+			//TODO: log if onError callback return error
+			continue
+		}
+		//TODO: log, event is confirmed successfully
 	}
+
 }
 
 func (p *Producer) Stop(ctx context.Context) error {
 
-	const op = "messaging.kafka.sarama.Producer.Stop"
+	const op = "core.messaging.kafka.sarama.Producer.Stop"
 
 	done := make(chan error, 1)
 
@@ -134,46 +160,4 @@ func (p *Producer) Stop(ctx context.Context) error {
 	case <-ctx.Done():
 		return fmt.Errorf("%s: %w", op, ctx.Err())
 	}
-}
-
-func NewProducer(config ProducerConfig) (kafka.AsyncProducer, error) {
-	const op = "messaging.kafka.sarama.NewProducer"
-
-	err := config.Validate()
-
-	if err != nil {
-		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
-	}
-
-	saramaConfig := sarama.NewConfig()
-
-	saramaConfig.Version = sarama.V4_1_0_0
-
-	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
-
-	saramaConfig.Producer.Retry.Max = config.SendMaxRetries
-
-	saramaConfig.Producer.Retry.Backoff = config.RetryBackoff
-
-	saramaConfig.Producer.Flush.Bytes = config.BatchBytes
-
-	saramaConfig.Producer.Flush.Messages = config.BatchMessagesCount
-
-	saramaConfig.Producer.Flush.Frequency = config.BatchFrequency
-
-	saramaConfig.Producer.Return.Errors = true
-	saramaConfig.Producer.Return.Successes = true
-
-	saramaConfig.Producer.Compression = sarama.CompressionSnappy
-
-	saramaConfig.ChannelBufferSize = config.ChannelBufferSize
-
-	p, err := sarama.NewAsyncProducer(config.Brokers, saramaConfig)
-
-	if err != nil {
-		return nil, fmt.Errorf("%s: error when create async producer instance: %w", op, err)
-	}
-
-	return &Producer{p}, nil
-
 }
