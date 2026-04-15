@@ -1,3 +1,6 @@
+[Обсуждение](https://chatgpt.com/c/69dfd20d-f7d0-832b-aaa2-a33310435b03)
+
+```go
 package closer
 
 import (
@@ -26,6 +29,7 @@ func New() *Closer {
 	return &Closer{}
 }
 
+// Add добавляет функции без имени (fallback)
 func (c *Closer) Add(f ...CloseFunc) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -42,6 +46,7 @@ func (c *Closer) Add(f ...CloseFunc) {
 	}
 }
 
+// AddNamed — основной метод (рекомендуется использовать его)
 func (c *Closer) AddNamed(name string, fn CloseFunc) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -54,21 +59,6 @@ func (c *Closer) AddNamed(name string, fn CloseFunc) {
 		name: name,
 		fn:   fn,
 	})
-}
-
-// safeCall — оборачивает вызов CloseFunc с защитой от panic
-func safeCall(ctx context.Context, name string, fn CloseFunc) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%s: panic: %v", name, r)
-		}
-	}()
-
-	if e := fn(ctx); e != nil {
-		return fmt.Errorf("%s: %w", name, e)
-	}
-
-	return nil
 }
 
 // Close закрывает ресурсы последовательно (LIFO)
@@ -94,8 +84,8 @@ func (c *Closer) Close(ctx context.Context) error {
 			break
 		}
 
-		if err := safeCall(ctx, f.name, f.fn); err != nil {
-			errs = append(errs, err)
+		if err := f.fn(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", f.name, err))
 		}
 	}
 
@@ -131,9 +121,9 @@ func (c *Closer) CloseParallel(ctx context.Context) error {
 		go func(f namedFunc) {
 			defer wg.Done()
 
-			if err := safeCall(ctx, f.name, f.fn); err != nil {
+			if err := f.fn(ctx); err != nil {
 				mu.Lock()
-				errs = append(errs, err)
+				errs = append(errs, fmt.Errorf("%s: %w", f.name, err))
 				mu.Unlock()
 			}
 		}(f)
@@ -149,10 +139,10 @@ func (c *Closer) CloseParallel(ctx context.Context) error {
 	select {
 	case <-done:
 
-		mu.Lock()
-		err := errors.Join(errs...)
-		mu.Unlock()
-		return err
+	  mu.Lock()
+    err := errors.Join(errs...)
+    mu.Unlock()
+    return err
 		// mu.Lock()
 		// defer mu.Unlock()
 
@@ -160,7 +150,9 @@ func (c *Closer) CloseParallel(ctx context.Context) error {
 		// 	return errors.Join(errs...)
 		// }
 		// return nil
+
 	case <-ctx.Done():
 		return fmt.Errorf("parallel close: %w", ctx.Err())
 	}
 }
+```

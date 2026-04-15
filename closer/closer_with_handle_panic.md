@@ -1,3 +1,8 @@
+С защитой от паник
+
+[Обсуждение](https://chatgpt.com/c/69dfd20d-f7d0-832b-aaa2-a33310435b03)
+
+```go
 package closer
 
 import (
@@ -149,10 +154,10 @@ func (c *Closer) CloseParallel(ctx context.Context) error {
 	select {
 	case <-done:
 
-		mu.Lock()
-		err := errors.Join(errs...)
-		mu.Unlock()
-		return err
+	  mu.Lock()
+    err := errors.Join(errs...)
+    mu.Unlock()
+    return err
 		// mu.Lock()
 		// defer mu.Unlock()
 
@@ -160,7 +165,9 @@ func (c *Closer) CloseParallel(ctx context.Context) error {
 		// 	return errors.Join(errs...)
 		// }
 		// return nil
+
 	case <-ctx.Done():
 		return fmt.Errorf("parallel close: %w", ctx.Err())
 	}
 }
+```
