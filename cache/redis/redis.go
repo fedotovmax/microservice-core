@@ -31,21 +31,25 @@ type Pool struct {
 	log *slog.Logger
 }
 
-func New(ctx context.Context, cfg Config, log *slog.Logger) (*Pool, error) {
+func New(ctx context.Context, config Config, log *slog.Logger) (*Pool, error) {
 
 	const op = "core.cache.redis.New"
 
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
+	}
+
 	redisClient := redis.NewClient(&redis.Options{
-		Addr:            cfg.Addr,
-		Password:        cfg.Password,
-		DB:              cfg.DB,
-		MaxRetries:      int(cfg.MaxRetries),
-		MinRetryBackoff: cfg.MinRetryBackoff,
-		MaxRetryBackoff: cfg.MaxRetryBackoff,
-		PoolSize:        cfg.PoolSize,
-		MaxIdleConns:    cfg.MaxIdleConns,
-		ConnMaxLifetime: cfg.MaxConnLifetime,
-		ConnMaxIdleTime: cfg.MaxIdleConnLifetime,
+		Addr:            config.Addr,
+		Password:        config.Password,
+		DB:              config.DB,
+		MaxRetries:      config.MaxRetries,
+		MinRetryBackoff: config.MinRetryBackoff,
+		MaxRetryBackoff: config.MaxRetryBackoff,
+		PoolSize:        config.PoolSize,
+		MaxIdleConns:    config.MaxIdleConns,
+		ConnMaxLifetime: config.MaxConnLifetime,
+		ConnMaxIdleTime: config.MaxIdleConnLifetime,
 	})
 
 	_, err := redisClient.Ping(ctx).Result()

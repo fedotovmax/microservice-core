@@ -62,12 +62,6 @@ func NewConfig() (Config, error) {
 		return Config{}, fmt.Errorf("%s: error when parse mail env variables: %w", op, err)
 	}
 
-	err = config.Validate()
-
-	if err != nil {
-		return Config{}, fmt.Errorf("%s: %w", op, err)
-	}
-
 	return config, nil
 
 }

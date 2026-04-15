@@ -17,6 +17,10 @@ func New(ctx context.Context, config Config) (postgresql.Pool, error) {
 
 	const op = "core.db.postgresql.pgx.New"
 
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
+	}
+
 	pool, err := connectWithRetries(ctx, config.BaseConfig, config.Dsn)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)

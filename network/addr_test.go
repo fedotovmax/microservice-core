@@ -1,51 +1,71 @@
 package network
 
 import (
-	"net"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAddr(t *testing.T) {
-	// Тестируем логику, которая соединяет Hostname и Port
 	tests := []struct {
+		name    string
 		addr    string
 		wantErr bool
 	}{
-		{"localhost:6379", false},
-		{"google.com:443", false},
-		{"127.0.0.1:80", false},
-		{"redis:99999", true},         // Кривой порт
-		{"my_host:6379", true},        // Кривой хост
-		{"http://localhost:80", true}, // Наличие протокола
+		{
+			name:    "Valid host and port",
+			addr:    "localhost:6379",
+			wantErr: false,
+		},
+		{
+			name:    "Valid IP and port",
+			addr:    "127.0.0.1:80",
+			wantErr: false,
+		},
+		{
+			name:    "Valid hostname only",
+			addr:    "redis-server",
+			wantErr: false,
+		},
+		{
+			name:    "Invalid port (too high)",
+			addr:    "localhost:70000",
+			wantErr: true,
+		},
+		{
+			name:    "Invalid port (not a number)",
+			addr:    "localhost:abc",
+			wantErr: true,
+		},
+		{
+			name:    "Invalid hostname format",
+			addr:    "invalid_host:6379", // если Hostname запрещает подчеркивания
+			wantErr: true,
+		},
+		{
+			name:    "Protocol not allowed (http)",
+			addr:    "http://localhost:80",
+			wantErr: true,
+		},
+		{
+			name:    "Protocol not allowed (redis)",
+			addr:    "redis://localhost:6379",
+			wantErr: true,
+		},
+		{
+			name:    "Empty address",
+			addr:    "",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.addr, func(t *testing.T) {
-			host, portStr, err := net.SplitHostPort(tt.addr)
-
-			// Если SplitHostPort не справился (например, нет порта)
-			if err != nil {
-				err = Hostname(tt.addr)
-			} else {
-				// Если справился, проверяем оба компонента
-				p, pErr := strconv.Atoi(portStr)
-				if pErr != nil {
-					err = pErr
-				} else {
-					err = Port(p)
-					if err == nil {
-						err = Hostname(host)
-					}
-				}
-			}
-
+		t.Run(tt.name, func(t *testing.T) {
+			err := Addr(tt.addr)
 			if tt.wantErr {
-				assert.Error(t, err, "Должна быть ошибка для: %s", tt.addr)
+				assert.Error(t, err, "Should return error for addr: %s", tt.addr)
 			} else {
-				assert.NoError(t, err, "Не должно быть ошибки для: %s", tt.addr)
+				assert.NoError(t, err, "Should not return error for addr: %s", tt.addr)
 			}
 		})
 	}
