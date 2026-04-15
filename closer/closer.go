@@ -2,75 +2,131 @@ package closer
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 	"sync"
 )
 
-// CloseFunc — сигнатура твоего метода Stop(ctx)
+// CloseFunc — функция корректного завершения ресурса.
+// ВАЖНО: функция обязана уважать ctx (отмену/таймаут).
 type CloseFunc func(ctx context.Context) error
 
+type namedFunc struct {
+	name string
+	fn   CloseFunc
+}
+
 type Closer struct {
-	mu    sync.Mutex
-	funcs []CloseFunc
+	mu     sync.Mutex
+	funcs  []namedFunc
+	closed bool
 }
 
 func New() *Closer {
 	return &Closer{}
 }
 
-// Add добавляет одну или несколько функций в список
+// Add добавляет функции без имени (fallback)
 func (c *Closer) Add(f ...CloseFunc) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.funcs = append(c.funcs, f...)
+
+	if c.closed {
+		panic("closer: Add called after Close")
+	}
+
+	for _, fn := range f {
+		c.funcs = append(c.funcs, namedFunc{
+			name: "unnamed",
+			fn:   fn,
+		})
+	}
 }
 
-// Close закрывает ресурсы последовательно в порядке LIFO (Last In, First Out).
-// Идеально для остановки серверов перед закрытием БД.
-func (c *Closer) Close(ctx context.Context) error {
+// AddNamed — основной метод (рекомендуется использовать его)
+func (c *Closer) AddNamed(name string, fn CloseFunc) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var errs []string
-	// Идем с конца очереди к началу
-	for i := len(c.funcs) - 1; i >= 0; i-- {
-		if err := c.funcs[i](ctx); err != nil {
-			errs = append(errs, err.Error())
+	if c.closed {
+		panic("closer: AddNamed called after Close")
+	}
+
+	c.funcs = append(c.funcs, namedFunc{
+		name: name,
+		fn:   fn,
+	})
+}
+
+// Close закрывает ресурсы последовательно (LIFO)
+func (c *Closer) Close(ctx context.Context) error {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil
+	}
+	c.closed = true
+
+	funcs := make([]namedFunc, len(c.funcs))
+	copy(funcs, c.funcs)
+	c.mu.Unlock()
+
+	var errs []error
+
+	for i := len(funcs) - 1; i >= 0; i-- {
+		f := funcs[i]
+
+		if err := ctx.Err(); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", f.name, err))
+			break
+		}
+
+		if err := f.fn(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", f.name, err))
 		}
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("sequential close errors: %s", strings.Join(errs, "; "))
+		return errors.Join(errs...)
 	}
 	return nil
 }
 
-// CloseParallel закрывает все ресурсы одновременно.
-// Идеально для независимых ресурсов (Redis, DB, Kafka), чтобы сэкономить время.
+// CloseParallel закрывает ресурсы параллельно (LIFO порядок запуска)
 func (c *Closer) CloseParallel(ctx context.Context) error {
 	c.mu.Lock()
-	funcs := c.funcs // Копируем слайс, чтобы не держать мьютекс долго
+	if c.closed {
+		c.mu.Unlock()
+		return nil
+	}
+	c.closed = true
+
+	funcs := make([]namedFunc, len(c.funcs))
+	copy(funcs, c.funcs)
 	c.mu.Unlock()
 
 	var (
-		wg    sync.WaitGroup
-		errMu sync.Mutex
-		errs  []string
-		done  = make(chan struct{})
+		wg   sync.WaitGroup
+		mu   sync.Mutex
+		errs []error
 	)
 
-	for _, f := range funcs {
+	for i := len(funcs) - 1; i >= 0; i-- {
+		f := funcs[i]
+
 		wg.Add(1)
-		go func(fn CloseFunc) {
+		go func(f namedFunc) {
 			defer wg.Done()
-			if err := fn(ctx); err != nil {
-				errMu.Lock()
-				errs = append(errs, err.Error())
-				errMu.Unlock()
+
+			if err := f.fn(ctx); err != nil {
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("%s: %w", f.name, err))
+				mu.Unlock()
 			}
 		}(f)
 	}
+
+	done := make(chan struct{})
 
 	go func() {
 		wg.Wait()
@@ -79,13 +135,15 @@ func (c *Closer) CloseParallel(ctx context.Context) error {
 
 	select {
 	case <-done:
-		// Все закрылось вовремя
-	case <-ctx.Done():
-		return fmt.Errorf("parallel close: context deadline exceeded")
-	}
+		mu.Lock()
+		defer mu.Unlock()
 
-	if len(errs) > 0 {
-		return fmt.Errorf("parallel close errors: %s", strings.Join(errs, "; "))
+		if len(errs) > 0 {
+			return errors.Join(errs...)
+		}
+		return nil
+
+	case <-ctx.Done():
+		return fmt.Errorf("parallel close: %w", ctx.Err())
 	}
-	return nil
 }
