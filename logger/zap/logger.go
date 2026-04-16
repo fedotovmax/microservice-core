@@ -13,7 +13,7 @@ import (
 
 type Logger struct {
 	*zap.Logger
-
+	atom zap.AtomicLevel
 	file *os.File
 }
 
@@ -46,18 +46,34 @@ func New(config Config) (logger.Logger, error) {
 	return l, nil
 }
 
-func (l *Logger) Stop() {
+func (l *Logger) SetLevel(level string) error {
+	const op = "core.logger.zap.Logger.SetLevel"
 
-	const op = "core.logger.zap.Logger.Stop"
+	loggerLevel := Level(level)
 
-	if l.file == nil {
-		return
+	if err := loggerLevel.Validate(); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	err := l.file.Close()
+	if err := l.atom.UnmarshalText([]byte(level)); err != nil {
+		return fmt.Errorf("%s: invalid zap level: %w", op, err)
+	}
+	return nil
+}
 
-	if err != nil {
-		fmt.Printf("%s: error when close log file, please, do not use this instance for log, use stdlib after that, error: %v\n", op, err)
+func (l *Logger) Stop() {
+	const op = "core.logger.zap.Logger.Stop"
+
+	// Сначала сбрасываем буфер.
+	// Ошибку игнорируем через _, так как для stdout она будет всегда.
+	_ = l.Logger.Sync()
+
+	if l.file != nil {
+		if err := l.file.Close(); err != nil {
+			// Логируем в стандартный вывод ошибок,
+			// так как сам логер может быть уже нестабилен.
+			fmt.Fprintf(os.Stderr, "%s: failed to close log file: %v\n", op, err)
+		}
 	}
 }
 
@@ -93,7 +109,6 @@ func initWithLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, 
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	//consoleDebugging := zapcore.Lock(os.Stdout)
 	consoleDebugging := zapcore.AddSync(os.Stdout)
 	fileWriter := zapcore.AddSync(logFile)
 
@@ -106,6 +121,7 @@ func initWithLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, 
 
 	return &Logger{
 		Logger: l,
+		atom:   zapLevel,
 		file:   logFile,
 	}, nil
 }
@@ -120,14 +136,13 @@ func initWithoutLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logge
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	//consoleDebugging := zapcore.Lock(os.Stdout)
 	consoleDebugging := zapcore.AddSync(os.Stdout)
 
 	core := zapcore.NewTee(zapcore.NewCore(encoder, consoleDebugging, zapLevel))
 
 	l := zap.New(core)
 
-	return &Logger{Logger: l}, nil
+	return &Logger{Logger: l, atom: zapLevel}, nil
 }
 
 func chooseEncoding(encoding Encoding) (zapcore.Encoder, error) {
@@ -140,13 +155,15 @@ func chooseEncoding(encoding Encoding) (zapcore.Encoder, error) {
 
 	switch encoding {
 	case EncodingJSON:
-		encoderConfig := zap.NewDevelopmentEncoderConfig()
-		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-		encoder = zapcore.NewConsoleEncoder(encoderConfig)
-	case EncodingPlainText:
 		encoderConfig := zap.NewProductionEncoderConfig()
 		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 		encoder = zapcore.NewJSONEncoder(encoderConfig)
+
+	case EncodingPlainText:
+		encoderConfig := zap.NewDevelopmentEncoderConfig()
+		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		encoder = zapcore.NewConsoleEncoder(encoderConfig)
+
 	default:
 		return nil, fmt.Errorf("%s: %w", op, InvalidEncodingError(encoding))
 	}

@@ -29,6 +29,7 @@ type Logger interface {
 	Debug(msg string, fields ...Field)
 	Warn(msg string, fields ...Field)
 	With(f ...Field) Logger
+	SetLevel(level string) error
 	Stop()
 }
 

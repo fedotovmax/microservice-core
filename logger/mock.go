@@ -11,6 +11,9 @@ func (n *Mock) Error(msg string, fields ...Field) {}
 func (n *Mock) Debug(msg string, fields ...Field) {}
 func (n *Mock) Warn(msg string, fields ...Field)  {}
 func (n *Mock) Stop()                             {}
+func (n *Mock) SetLevel(level string) error {
+	return nil
+}
 
 func (n *Mock) With(f ...Field) Logger {
 	return n
