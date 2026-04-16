@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/fedotovmax/microservice-core/ft"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 )
 
@@ -19,8 +19,6 @@ type ConsumerGroup struct {
 	stopCtxFunc func()
 	config      ConsumerGroupConfig
 }
-
-const maxJitter = time.Millisecond * 500
 
 // - ReadTimeout → сколько ждём ответ (важно для commit)
 // - WriteTimeout → сколько отправляем запрос
@@ -82,52 +80,54 @@ func NewConsumerGroup(config ConsumerGroupConfig) (kafka.ConsumerGroup, error) {
 }
 
 func (c *ConsumerGroup) startRead(ctx context.Context, reader kafka.Reader) {
+	// Создаем наш backoff-объект
+	bo := ft.NewExponentialBackoff(
+		c.config.BackoffMinInterval,
+		c.config.BackoffMaxInterval,
+		0.1, // 10% jitter
+	)
 
-	currentSleep := c.config.BackoffMinInterval
+	attempt := 0
 
 	for {
-
 		if ctx.Err() != nil {
-			//TODO: log
 			return
 		}
 
-		err := c.Consume(ctx, c.config.Topics, &h{r: reader, commitInterval: c.config.CommitInterval /**commitBatchSize: c.config.CommitBatchSize**/})
+		err := c.Consume(ctx, c.config.Topics, &h{
+			r:              reader,
+			commitInterval: c.config.CommitInterval,
+		})
 
-		if err != nil {
-
-			if errors.Is(err, sarama.ErrClosedConsumerGroup) {
-				return
-			}
-
-			//TODO: log
-
-			jitter := time.Duration(rand.Int63n(int64(maxJitter)))
-			sleepTime := currentSleep + jitter
-
-			//TODO: log
-
-			select {
-			case <-time.After(sleepTime):
-				// Увеличиваем паузу (exponential)
-				currentSleep *= 2
-				if currentSleep > c.config.BackoffMaxInterval {
-					currentSleep = c.config.BackoffMaxInterval
-				}
-			case <-ctx.Done():
-				return
-			}
-
+		if err == nil {
+			// Если чтение прошло успешно (Consume завершился без ошибки),
+			// сбрасываем счетчик попыток для Backoff
+			attempt = 0
 			continue
-
 		}
 
-		currentSleep = c.config.BackoffMinInterval
+		// Если критическая ошибка — выходим
+		if errors.Is(err, sarama.ErrClosedConsumerGroup) {
+			return
+		}
 
+		// Логируем ошибку здесь...
+
+		// Вычисляем время ожидания на основе количества неудач подряд
+		wait := bo.Next(attempt)
+		attempt++
+
+		// Безопасное ожидание
+		timer := time.NewTimer(wait)
+		select {
+		case <-timer.C:
+			// Продолжаем цикл и пробуем снова
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		}
 	}
-
 }
-
 func (c *ConsumerGroup) handleErrors(ctx context.Context, onError kafka.OnConsumeError) {
 
 	for {

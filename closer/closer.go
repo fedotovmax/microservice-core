@@ -57,15 +57,15 @@ func (c *Closer) AddNamed(name string, fn CloseFunc) {
 }
 
 // safeCall — оборачивает вызов CloseFunc с защитой от panic
-func safeCall(ctx context.Context, name string, fn CloseFunc) (err error) {
+func safeCall(ctx context.Context, nf namedFunc) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("%s: panic: %v", name, r)
+			err = fmt.Errorf("%s: panic: %v", nf.name, r)
 		}
 	}()
 
-	if e := fn(ctx); e != nil {
-		return fmt.Errorf("%s: %w", name, e)
+	if e := nf.fn(ctx); e != nil {
+		return fmt.Errorf("%s: %w", nf.name, e)
 	}
 
 	return nil
@@ -94,7 +94,7 @@ func (c *Closer) Close(ctx context.Context) error {
 			break
 		}
 
-		if err := safeCall(ctx, f.name, f.fn); err != nil {
+		if err := safeCall(ctx, f); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -127,16 +127,13 @@ func (c *Closer) CloseParallel(ctx context.Context) error {
 	for i := len(funcs) - 1; i >= 0; i-- {
 		f := funcs[i]
 
-		wg.Add(1)
-		go func(f namedFunc) {
-			defer wg.Done()
-
-			if err := safeCall(ctx, f.name, f.fn); err != nil {
+		wg.Go(func() {
+			if err := safeCall(ctx, f); err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 			}
-		}(f)
+		})
 	}
 
 	done := make(chan struct{})
@@ -153,13 +150,7 @@ func (c *Closer) CloseParallel(ctx context.Context) error {
 		err := errors.Join(errs...)
 		mu.Unlock()
 		return err
-		// mu.Lock()
-		// defer mu.Unlock()
 
-		// if len(errs) > 0 {
-		// 	return errors.Join(errs...)
-		// }
-		// return nil
 	case <-ctx.Done():
 		return fmt.Errorf("parallel close: %w", ctx.Err())
 	}
