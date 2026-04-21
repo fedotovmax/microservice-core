@@ -13,6 +13,8 @@ func (p *Outbox) process() {
 
 	log := p.log.With(logger.String("op", op))
 
+	defer close(p.processingFinished)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -21,7 +23,6 @@ func (p *Outbox) process() {
 	for {
 		select {
 		case <-p.stopProcessSignal:
-			cancel()
 			log.Info("event processing stopped")
 			return
 		case <-ticker.C:

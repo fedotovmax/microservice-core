@@ -18,6 +18,8 @@ type ConsumerGroup struct {
 	stopCtx     context.Context
 	stopCtxFunc func()
 	config      ConsumerGroupConfig
+	stopOnce    sync.Once // Гарантирует, что закроем всё один раз
+
 }
 
 // - ReadTimeout → сколько ждём ответ (важно для commit)
@@ -95,8 +97,9 @@ func (c *ConsumerGroup) startRead(ctx context.Context, reader kafka.Reader) {
 		}
 
 		err := c.Consume(ctx, c.config.Topics, &h{
-			r:              reader,
-			commitInterval: c.config.CommitInterval,
+			r:                 reader,
+			commitInterval:    c.config.CommitInterval,
+			maxProcessingTime: c.config.MaxProcessingTime,
 		})
 
 		if err == nil {
@@ -167,42 +170,66 @@ func (c *ConsumerGroup) Start(onError kafka.OnConsumeError, reader kafka.Reader)
 
 	go func() {
 		wg.Wait()
-		c.signalAllStopped()
+		close(c.isStopped)
 	}()
 
-}
-
-func (c *ConsumerGroup) signalAllStopped() {
-	close(c.isStopped)
 }
 
 func (c *ConsumerGroup) Stop(ctx context.Context) error {
-
 	const op = "core.messaging.kafka.sarama.ConsumerGroup.Stop"
+	var closeErr error
 
-	done := make(chan error, 1)
+	// 1. Используем sync.Once, чтобы не закрывать дважды
+	c.stopOnce.Do(func() {
+		// А) Отменяем контекст (сигнал обработчикам остановиться)
+		c.stopCtxFunc()
 
-	c.stopCtxFunc()
+		// Б) СРАЗУ закрываем саму группу Sarama.
+		// Это разорвет сетевые соединения и вытолкнет c.Consume() из блокировки.
+		closeErr = c.ConsumerGroup.Close()
+	})
 
-	go func() {
-		<-c.isStopped
-		err := c.ConsumerGroup.Close()
-		done <- err
-	}()
-
+	// 2. Ждем, пока горутины старта реально завершатся
 	select {
-
-	case err := <-done:
-
-		if err != nil {
-			return fmt.Errorf("%s: unexpected error when close consumer group: %w", op, err)
+	case <-c.isStopped:
+		if closeErr != nil {
+			return fmt.Errorf("%s: error when closing: %w", op, closeErr)
 		}
-
 		return nil
 
 	case <-ctx.Done():
-
-		return fmt.Errorf("%s: %w", op, ctx.Err())
-
+		// Если бизнес-логика (OnRead) настолько зависла, что даже Close() не помог
+		return fmt.Errorf("%s: shutdown timed out: %w", op, ctx.Err())
 	}
 }
+
+// func (c *ConsumerGroup) OldStop(ctx context.Context) error {
+
+// 	const op = "core.messaging.kafka.sarama.ConsumerGroup.Stop"
+
+// 	done := make(chan error, 1)
+
+// 	c.stopCtxFunc()
+
+// 	go func() {
+// 		<-c.isStopped
+// 		err := c.ConsumerGroup.Close()
+// 		done <- err
+// 	}()
+
+// 	select {
+
+// 	case err := <-done:
+
+// 		if err != nil {
+// 			return fmt.Errorf("%s: unexpected error when close consumer group: %w", op, err)
+// 		}
+
+// 		return nil
+
+// 	case <-ctx.Done():
+
+// 		return fmt.Errorf("%s: %w", op, ctx.Err())
+
+// 	}
+// }

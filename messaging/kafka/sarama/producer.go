@@ -103,14 +103,19 @@ func (p *Producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 
 		failedEvent := kafka.NewFailedEvent(metadata.ID, metadata.Type, event.Err)
 
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		err := onError(ctx, failedEvent)
-		cancel()
+		err := p.handleError(failedEvent, timeout, onError)
+
 		if err != nil {
 			continue
 			//TODO: log if onError callback return error
 		}
 	}
+}
+
+func (p *Producer) handleError(e kafka.FailedEvent, timeout time.Duration, onError kafka.OnError) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return onError(ctx, e)
 }
 
 func (p *Producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSuccess) {
@@ -127,17 +132,21 @@ func (p *Producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 
 		successEvent := kafka.NewSuccessEvent(metadata.ID, metadata.Type)
 
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		err := p.handleSuccess(successEvent, timeout, onSuccess)
 
-		err := onSuccess(ctx, successEvent)
-		cancel()
 		if err != nil {
-			//TODO: log if onError callback return error
+			//TODO: log if onSuccess callback return error
 			continue
 		}
 		//TODO: log, event is confirmed successfully
 	}
 
+}
+
+func (p *Producer) handleSuccess(e kafka.SuccessEvent, timeout time.Duration, onSuccess kafka.OnSuccess) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return onSuccess(ctx, e)
 }
 
 func (p *Producer) Stop(ctx context.Context) error {

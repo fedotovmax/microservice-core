@@ -15,6 +15,13 @@ func (p *Outbox) Stop(ctx context.Context) error {
 
 	close(p.stopProcessSignal)
 
+	select {
+	case <-p.processingFinished:
+		l.Info("event sending process stopped")
+	case <-ctx.Done():
+		return fmt.Errorf("%s: wait for process finished timeout: %w", op, ctx.Err())
+	}
+
 	err := p.producer.Stop(ctx)
 	if err != nil {
 		l.Error("error when close producer", logger.Err(err))

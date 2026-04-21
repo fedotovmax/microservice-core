@@ -67,9 +67,13 @@ func (h *h) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.ConsumerGroupCl
 
 			ev := kafka.NewConsumeEvent(eventID, eventType, payload, msg.Key, msg.Offset, msg.Topic, msg.Partition)
 
-			ctx, cancel := context.WithTimeout(s.Context(), h.maxProcessingTime)
-			h.r.OnRead(ctx, ev, mark)
-			cancel()
+			h.handle(s.Context(), ev, mark)
 		}
 	}
+}
+
+func (h *h) handle(ctx context.Context, ev kafka.ConsumeEvent, mark kafka.Mark) {
+	readctx, cancel := context.WithTimeout(ctx, h.maxProcessingTime)
+	defer cancel()
+	h.r.OnRead(readctx, ev, mark)
 }
