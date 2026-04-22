@@ -2,6 +2,7 @@ package mail
 
 import (
 	"fmt"
+	"net/mail"
 	"unicode/utf8"
 )
 
@@ -13,7 +14,7 @@ type TextMessage struct {
 
 func (m TextMessage) Validate() error {
 
-	err := Email(m.To)
+	_, err := mail.ParseAddress(m.To)
 
 	if err != nil {
 		return err
@@ -39,7 +40,7 @@ type HTMLMessage struct {
 
 func (m HTMLMessage) Validate() error {
 
-	err := Email(m.To)
+	_, err := mail.ParseAddress(m.To)
 
 	if err != nil {
 		return err

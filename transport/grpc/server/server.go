@@ -5,60 +5,107 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync/atomic"
 
+	"github.com/fedotovmax/microservice-core/logger"
 	"google.golang.org/grpc"
 )
-
-var ErrForceStoppedServer = errors.New("the server was forcibly stopped due to a timeout")
 
 // RegisterFunc — это «клей» между вашим gRPC сервером и сгенерированным кодом
 type RegisterFunc func(*grpc.Server)
 
 type gRPCServer struct {
-	addr string
-	grpc *grpc.Server
+	config    Config
+	gRPC      *grpc.Server
+	isRunning atomic.Bool
+	log       logger.Logger
 }
 
 // Теперь New принимает слайс функций регистрации
-func New(addr string, registers []RegisterFunc, opts ...grpc.ServerOption) *gRPCServer {
+func New(c Config, log logger.Logger, registers []RegisterFunc, opts ...grpc.ServerOption) (*gRPCServer, error) {
+
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+
 	s := &gRPCServer{
-		addr: addr,
-		grpc: grpc.NewServer(opts...),
+		config: c,
+		log:    log,
+		gRPC:   grpc.NewServer(opts...),
 	}
 
 	// Выполняем регистрацию всех переданных сервисов
 	for _, reg := range registers {
-		reg(s.grpc)
+		reg(s.gRPC)
 	}
 
-	return s
+	return s, nil
+}
+
+func (s *gRPCServer) StartAsync(onError ...func()) {
+
+	const op = "core.transport.grpc.server.gRPCServer.StartAsync"
+
+	go func() {
+		if err := s.Start(); err != nil {
+			s.log.With(logger.String("op", op)).Error("cannot start gRPC server", logger.Err(err))
+			if len(onError) > 0 {
+				for _, fn := range onError {
+					fn()
+				}
+			}
+		}
+	}()
 }
 
 func (s *gRPCServer) Start() error {
-	listener, err := net.Listen("tcp", s.addr)
-	if err != nil {
-		return fmt.Errorf("grpc.Start: %w", err)
+
+	const op = "core.transport.grpc.server.gRPCServer.Start"
+
+	if !s.isRunning.CompareAndSwap(false, true) {
+		return fmt.Errorf("%s: server already running", op)
 	}
 
-	return s.grpc.Serve(listener)
+	defer s.isRunning.Store(false)
+
+	l, err := net.Listen("tcp", s.config.Addr)
+	if err != nil {
+		return fmt.Errorf("%s: tcp listener error: %w", op, err)
+	}
+
+	s.log.With(logger.String("op", op)).Info("starting gRPC server", logger.String("addr", s.config.Addr))
+
+	if err := s.gRPC.Serve(l); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+		return fmt.Errorf("%s: gRPC runtime error: %w", op, err)
+	}
+
+	return nil
 }
 
 func (s *gRPCServer) Stop(ctx context.Context) error {
 
 	const op = "core.transport.grpc.server.gRPCServer.Stop"
 
+	log := s.log.With(logger.String("op", op))
+
+	if wasRunning := s.isRunning.Swap(false); !wasRunning {
+		log.Warn("cannot stop gRPC server, server not running")
+		return nil
+	}
+
 	done := make(chan struct{})
 
 	go func() {
-		s.grpc.GracefulStop()
+		s.gRPC.GracefulStop()
 		close(done)
 	}()
 
 	select {
 	case <-done:
+		log.Info("gRPC server closed gracefully")
 		return nil
 	case <-ctx.Done():
-		s.grpc.Stop()
-		return fmt.Errorf("%s: %w", op, ErrForceStoppedServer)
+		s.gRPC.Stop()
+		return fmt.Errorf("%s: gRPC server stop context expired, server closed forcibly", op)
 	}
 }

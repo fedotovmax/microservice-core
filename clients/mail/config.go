@@ -2,9 +2,9 @@ package mail
 
 import (
 	"fmt"
+	"net/mail"
 	"unicode/utf8"
 
-	"github.com/fedotovmax/microservice-core/network"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -20,22 +20,18 @@ func (c Config) Validate() error {
 
 	const op = "core.network.mail.Config.Validate"
 
-	err := network.Hostname(c.Host)
-
-	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
+	if c.Host == "" {
+		return fmt.Errorf("%s: hostname cannot be empty", op)
 	}
 
-	err = network.Port(c.Port)
-
-	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
+	if c.Port <= 0 {
+		return fmt.Errorf("%s: port must be greater than 0", op)
 	}
 
-	err = Email(c.Sender)
+	_, err := mail.ParseAddress(c.Sender)
 
 	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
+		return fmt.Errorf("%s: invalid sender address: %w", op, err)
 	}
 
 	if utf8.RuneCountInString(c.Secret) < 5 {

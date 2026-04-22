@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fedotovmax/microservice-core/network"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -24,8 +23,8 @@ type Config struct {
 func (c Config) Validate() error {
 	const op = "core.cache.redis.Config.Validate"
 
-	if err := network.Addr(c.Addr); err != nil {
-		return fmt.Errorf("%s: invalid redis address: %w", op, err)
+	if c.Addr == "" {
+		return fmt.Errorf("%s: connection address cannot be empty", op)
 	}
 
 	if c.MinRetryBackoff > c.MaxRetryBackoff {

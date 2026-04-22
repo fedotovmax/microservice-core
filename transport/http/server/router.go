@@ -1,4 +1,4 @@
-package serverv2
+package server
 
 import (
 	"net/http"

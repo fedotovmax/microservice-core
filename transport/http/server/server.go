@@ -5,87 +5,104 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/fedotovmax/microservice-core/logger"
-	"github.com/go-chi/chi/v5"
 )
 
-type HTTPServer struct {
-	*chiRouter
-	log    logger.Logger
-	config Config
+type httpServer struct {
+	srv       *http.Server
+	log       logger.Logger
+	config    Config
+	mux       http.Handler
+	isRunning atomic.Bool
 }
 
-func New(c Config, log logger.Logger) (*HTTPServer, error) {
+func New(c Config, log logger.Logger, mux http.Handler) (*httpServer, error) {
 
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
 
-	mux := chi.NewRouter()
-
-	return &HTTPServer{
-		chiRouter: newChiRouter(mux),
-		config:    c,
-		log:       log,
+	return &httpServer{
+		mux:    mux,
+		config: c,
+		log:    log,
 	}, nil
 }
 
-func (s *HTTPServer) Start(ctx context.Context) error {
+func (s *httpServer) StartAsync(onError ...func()) {
 
-	const op = "core.transport.http.server.HTTPServer.Start"
-
-	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.config.Port),
-		Handler: s.chiRouter.mux,
-	}
-
-	signal := make(chan error, 1)
+	const op = "core.transport.grpc.server.httpServer.StartAsync"
 
 	go func() {
-
-		defer close(signal)
-
-		s.log.Warn("starting HTTP server", logger.Int("port", s.config.Port))
-
-		err := srv.ListenAndServe()
-
-		if !errors.Is(err, http.ErrServerClosed) {
-			signal <- err
+		if err := s.Start(); err != nil {
+			s.log.With(logger.String("op", op)).Error("cannot start gRPC server", logger.Err(err))
+			if len(onError) > 0 {
+				for _, fn := range onError {
+					fn()
+				}
+			}
 		}
 	}()
+}
 
-	select {
+func (s *httpServer) Start() error {
 
-	case err := <-signal:
+	const op = "core.transport.http.server.httpServer.Start"
 
-		if err != nil {
-			return fmt.Errorf("%s: failed to start HTTP server: %w", op, err)
-		}
+	if !s.isRunning.CompareAndSwap(false, true) {
+		return fmt.Errorf("%s: server already running", op)
+	}
 
-	case <-ctx.Done():
+	defer s.isRunning.Store(false)
 
-		s.log.Warn("shutting down HTTP server")
+	s.srv = &http.Server{
+		Addr:    s.config.Addr,
+		Handler: s.mux,
+	}
 
-		shutdownCtx, cancelShutdownCtx := context.WithTimeout(context.Background(), s.config.ShutdownTimeout)
-		defer cancelShutdownCtx()
+	s.log.Warn("starting HTTP server", logger.String("addr", s.config.Addr))
 
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-
-			forceErr := srv.Close()
-
-			if forceErr != nil {
-				return fmt.Errorf("%s: failed to shutdown HTTP server: %w, also failed to force close: %v", op, err, forceErr)
-			}
-
-			return fmt.Errorf("%s: failed to shutdown HTTP server, but closed forcibly: %w: %v", op, ErrServerClosedForcibly, err)
-
-		}
-
-		s.log.Warn("HTTP server closed successfully")
-
+	err := s.srv.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	return nil
+}
 
+func (s *httpServer) Stop(ctx context.Context) error {
+
+	const op = "core.transport.http.server.httpServer.Stop"
+
+	if s.srv == nil {
+		return fmt.Errorf("%s: %w", op, ErrCallStopBeforeStartServer)
+	}
+
+	log := s.log.With(logger.String("op", op))
+
+	if wasRunning := s.isRunning.Swap(false); !wasRunning {
+		log.Warn("cannot stop HTTP server, server not running")
+		return nil
+	}
+
+	// Пытаемся закрыть красиво
+	if err := s.srv.Shutdown(ctx); err != nil {
+
+		// Если не вышло (таймаут или ошибка), закрываем принудительно
+		forceErr := s.srv.Close()
+
+		if forceErr != nil {
+			return fmt.Errorf("%s: failed to shutdown HTTP server: %w, also failed to force close: %v",
+				op, err, forceErr)
+		}
+
+		// Если принудительно закрыли успешно, всё равно сообщаем об ошибке Shutdown
+		return fmt.Errorf("%s: failed to shutdown HTTP server, but closed forcibly: %w",
+			op, err)
+	}
+
+	s.log.Warn("HTTP server closed gracefully")
+	return nil
 }

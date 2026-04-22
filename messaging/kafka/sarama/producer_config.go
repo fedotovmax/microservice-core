@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fedotovmax/microservice-core/network"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -36,8 +35,8 @@ func (c ProducerConfig) Validate() error {
 	}
 
 	for i := range c.Brokers {
-		if err := network.Addr(c.Brokers[i]); err != nil {
-			return fmt.Errorf("%s: invalid broker address %s: %w", op, c.Brokers[i], err)
+		if c.Brokers[i] == "" {
+			return fmt.Errorf("%s: broker address with index: %d is empty", op)
 		}
 	}
 

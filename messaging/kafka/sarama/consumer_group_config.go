@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fedotovmax/microservice-core/network"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -32,13 +31,13 @@ func (c ConsumerGroupConfig) Validate() error {
 
 	const op = "core.messaging.kafka.sarama.ConsumerGroupConfig.Validate"
 
-	// 1. Проверка брокеров и топиков
 	if len(c.Brokers) == 0 {
 		return fmt.Errorf("%s: at least one broker is required", op)
 	}
+
 	for i := range c.Brokers {
-		if err := network.Addr(c.Brokers[i]); err != nil {
-			return fmt.Errorf("%s: %w", op, err)
+		if c.Brokers[i] == "" {
+			return fmt.Errorf("%s: broker address with index: %d is empty", op)
 		}
 	}
 
