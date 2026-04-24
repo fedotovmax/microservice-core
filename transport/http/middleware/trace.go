@@ -28,7 +28,6 @@ func Trace() Middleware {
 				logger.Int("status_code", rw.StatusCode()),
 				logger.Duration("latency", time.Since(before)),
 			)
-
 		})
 	}
 }

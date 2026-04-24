@@ -7,7 +7,6 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
-// TODO: validate
 type Config struct {
 	BaseConfig
 	Dsn string `envconfig:"POSTGRES_DSN" required:"true"`

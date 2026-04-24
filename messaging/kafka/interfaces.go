@@ -16,16 +16,16 @@ type AsyncProducer interface {
 }
 
 type ConsumerGroup interface {
-	Start(onError OnConsumeError, reader Reader)
+	Start(params ConsumerGroupStartReadParams, onConsumeError OnConsumeError)
 	Stop(ctx context.Context) error
 }
 
-type Mark func(meta string)
+type MessageHandler func(ctx context.Context, ev ConsumeEvent) error
+
+type Middleware func(next MessageHandler) MessageHandler
 
 type OnConsumeError func(ctx context.Context, err error)
 
-type Reader interface {
-	OnRead(ctx context.Context, event ConsumeEvent, mark Mark)
-	OnSetup()
-	OnCleanUp()
-}
+type OnSetup func() error
+
+type OnCleanUp func() error

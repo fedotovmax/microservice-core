@@ -7,42 +7,43 @@ import (
 )
 
 type Input struct {
-	aggregateID string
-	topic       string
-	etype       string
-	payload     json.RawMessage
+	key     string
+	topic   string
+	headers []Header
+	payload json.RawMessage
 }
 
 func NewInput(
-	aggregateID string,
+	key string,
 	topic string,
-	etype string,
+	headers []Header,
 	payload json.RawMessage,
 ) Input {
 	return Input{
-		aggregateID: aggregateID,
-		topic:       topic,
-		etype:       etype,
-		payload:     payload,
+		key:     key,
+		topic:   topic,
+		headers: headers,
+		payload: payload,
 	}
 }
 
-func (e Input) GetType() string {
-	return e.etype
+func (e Input) Headers() []Header {
+	return e.headers
 }
 
-func (e Input) GetTopic() string {
+func (e Input) Topic() string {
 	return e.topic
 }
 
-func (e Input) GetAggregateID() string {
-	return e.aggregateID
+func (e Input) Key() string {
+	return e.key
 }
 
-func (e Input) GetPayload() json.RawMessage {
+func (e Input) Payload() json.RawMessage {
 	return e.payload
 }
 
 type Event = kafka.Event
 type FailedEvent = kafka.FailedEvent
 type SuccessEvent = kafka.SuccessEvent
+type Header = kafka.Header

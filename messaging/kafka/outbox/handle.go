@@ -23,7 +23,7 @@ func (p *Outbox) handle(ctx context.Context) {
 	}
 
 	if len(events) == 0 {
-		log.Debug("skip processing, no new events")
+		log.Info("skip outbox processing, no new events")
 		return
 	}
 
@@ -31,9 +31,14 @@ func (p *Outbox) handle(ctx context.Context) {
 		err := p.producer.Send(newCtx, events[idx])
 
 		if err != nil {
-			log.Error("error when send event to kafka", logger.String("event_id", events[idx].GetID()), logger.Err(err))
+			log.Error(
+				"error when send event to kafka",
+				logger.String("event_key", events[idx].Key()),
+				logger.Any("event_headers", events[idx].Headers()),
+				logger.Any("event_meta", events[idx].Meta()),
+				logger.Err(err),
+			)
 			continue
 		}
 	}
-
 }

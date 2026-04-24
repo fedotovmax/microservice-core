@@ -3,9 +3,9 @@ package zap
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/fedotovmax/microservice-core/filesystem"
 	"github.com/fedotovmax/microservice-core/logger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -91,11 +91,9 @@ func initWithLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, 
 
 	timestamp := time.Now().UTC().Format("2006-01-02T15-04-05.000000")
 
-	logFilePath, err := filesystem.SafeJoin(config.LogFolder.Path, fmt.Sprintf("%s.log", timestamp))
+	logFileName := fmt.Sprintf("%s.log", timestamp)
 
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
+	logFilePath := filepath.Join(config.LogFolder.Path, logFileName)
 
 	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0644)
 

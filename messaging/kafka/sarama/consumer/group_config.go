@@ -1,4 +1,4 @@
-package sarama
+package consumer
 
 import (
 	"fmt"
@@ -7,7 +7,11 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
-type ConsumerGroupConfig struct {
+// - ReadTimeout → сколько ждём ответ (важно для commit)
+// - WriteTimeout → сколько отправляем запрос
+// - Session.Timeout → когда тебя выкинут из группы
+// - Heartbeat.Interval → как часто ты “пингуешь” Kafka
+type GroupConfig struct {
 	Brokers []string `envconfig:"KAFKA_CONSUMER_GROUP_BROKERS" required:"true"`
 	Topics  []string `envconfig:"KAFKA_CONSUMER_GROUP_TOPICS" required:"true"`
 	GroupID string   `envconfig:"KAFKA_CONSUMER_GROUP_GROUP_ID" required:"true"`
@@ -27,9 +31,9 @@ type ConsumerGroupConfig struct {
 	//CommitBatchSize    int           `envconfig:"KAFKA_CONSUMER_GROUP_COMMIT_BATCH_SIZE" required:"true" default:"30"`
 }
 
-func (c ConsumerGroupConfig) Validate() error {
+func (c GroupConfig) Validate() error {
 
-	const op = "core.messaging.kafka.sarama.ConsumerGroupConfig.Validate"
+	const op = "core.messaging.kafka.sarama.GroupConfig.Validate"
 
 	if len(c.Brokers) == 0 {
 		return fmt.Errorf("%s: at least one broker is required", op)
@@ -37,7 +41,7 @@ func (c ConsumerGroupConfig) Validate() error {
 
 	for i := range c.Brokers {
 		if c.Brokers[i] == "" {
-			return fmt.Errorf("%s: broker address with index: %d is empty", op)
+			return fmt.Errorf("%s: broker address with index: %d is empty", op, i)
 		}
 	}
 
@@ -103,17 +107,17 @@ func (c ConsumerGroupConfig) Validate() error {
 	return nil
 }
 
-func NewConsumerGroupConfig() (ConsumerGroupConfig, error) {
-	var config ConsumerGroupConfig
+func NewGroupConfig() (GroupConfig, error) {
+	var config GroupConfig
 
 	if err := envconfig.Process("", &config); err != nil {
-		return ConsumerGroupConfig{}, fmt.Errorf("error when parse kafka consumer group env variables: %w", err)
+		return GroupConfig{}, fmt.Errorf("error when parse kafka consumer group env variables: %w", err)
 	}
 
 	return config, nil
 }
-func NewConsumerGroupConfigMust() ConsumerGroupConfig {
-	config, err := NewConsumerGroupConfig()
+func NewGroupConfigMust() GroupConfig {
+	config, err := NewGroupConfig()
 
 	if err != nil {
 		panic(err)

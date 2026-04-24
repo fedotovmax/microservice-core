@@ -2,24 +2,25 @@ package kafka
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 type FailedEvent struct {
-	id    string
-	etype string
-	err   error
+	meta    any
+	err     error
+	headers []Header
 }
 
-func NewFailedEvent(id, etype string, err error) FailedEvent {
-	return FailedEvent{id: id, etype: etype, err: err}
+func NewFailedEvent(meta any, h []Header, err error) FailedEvent {
+	return FailedEvent{meta: meta, err: err, headers: h}
 }
 
-func (e FailedEvent) GetID() string {
-	return e.id
+func (e FailedEvent) GetHeaders() []Header {
+	return e.headers
 }
 
-func (e FailedEvent) GetType() string {
-	return e.etype
+func (e FailedEvent) GetMeta() any {
+	return e.meta
 }
 
 func (e FailedEvent) GetError() error {
@@ -27,101 +28,139 @@ func (e FailedEvent) GetError() error {
 }
 
 type SuccessEvent struct {
-	id    string
-	etype string
+	meta    any
+	headers []Header
 }
 
-func NewSuccessEvent(id, etype string) SuccessEvent {
-	return SuccessEvent{id: id, etype: etype}
+func NewSuccessEvent(meta any, h []Header) SuccessEvent {
+	return SuccessEvent{headers: h, meta: meta}
 }
 
-func (e SuccessEvent) GetID() string {
-	return e.id
+func (e SuccessEvent) GetHeaders() []Header {
+	return e.headers
 }
 
-func (e SuccessEvent) GetType() string {
-	return e.etype
+func (e SuccessEvent) GetMeta() any {
+	return e.meta
+}
+
+type Header struct {
+	Key   []byte
+	Value []byte
 }
 
 type Event struct {
-	id          string
-	aggregateID string
-	topic       string
-	etype       string
-	payload     json.RawMessage
+	key     string
+	topic   string
+	payload json.RawMessage
+	headers []Header
+	meta    any
 }
 
-func NewEvent(id, aggid, topic, etype string, payload json.RawMessage) Event {
+func NewEvent(
+	key string,
+	topic string,
+	payload json.RawMessage,
+	headers []Header,
+	meta any,
+) Event {
 	return Event{
-		id:          id,
-		aggregateID: aggid,
-		topic:       topic,
-		etype:       etype,
-		payload:     payload,
+		key:     key,
+		topic:   topic,
+		payload: payload,
+		headers: headers,
+		meta:    meta,
 	}
 }
 
-func (e Event) GetID() string {
-	return e.id
+func (e Event) Headers() []Header {
+	return e.headers
 }
 
-func (e Event) GetType() string {
-	return e.etype
+func (e Event) Meta() any {
+	return e.meta
 }
 
-func (e Event) GetTopic() string {
+func (e Event) Topic() string {
 	return e.topic
 }
 
-func (e Event) GetAggregateID() string {
-	return e.aggregateID
+func (e Event) Key() string {
+	return e.key
 }
 
-func (e Event) GetPayload() json.RawMessage {
+func (e Event) Payload() json.RawMessage {
 	return e.payload
 }
 
 type ConsumeEvent struct {
-	id        string
-	etype     string
 	payload   json.RawMessage
 	key       []byte
 	offset    int64
 	topic     string
 	partition int32
+	headers   []Header
 }
 
 func NewConsumeEvent(
-	id string,
-	etype string,
 	payload json.RawMessage,
 	key []byte,
 	offset int64,
 	topic string,
 	partition int32,
+	headers []Header,
 ) ConsumeEvent {
 	return ConsumeEvent{
-		id:        id,
-		etype:     etype,
 		payload:   payload,
 		key:       key,
 		offset:    offset,
 		topic:     topic,
 		partition: partition,
+		headers:   headers,
 	}
 }
 
-//TODO:
-// type Session struct {
-// }
+func (e *ConsumeEvent) Payload() json.RawMessage {
+	return e.payload
+}
 
-// type S interface {
-// 	Claims() map[string][]int32
-// 	MemberID() string
-// 	GenerationID() int32
-// 	MarkOffset(topic string, partition int32, offset int64, metadata string)
-// 	Commit()
-// 	ResetOffset(topic string, partition int32, offset int64, metadata string)
-// 	MarkMessage(msg *ConsumerMessage, metadata string)
-// 	Context() context.Context
-// }
+func (e *ConsumeEvent) Key() []byte {
+	return e.key
+}
+
+func (e *ConsumeEvent) Offset() int64 {
+	return e.offset
+}
+
+func (e *ConsumeEvent) Topic() string {
+	return e.topic
+}
+
+func (e *ConsumeEvent) Partition() int32 {
+	return e.partition
+}
+
+func (e *ConsumeEvent) Headers() []Header {
+	return e.headers
+}
+
+// Вернуть эту ошибку, если например в хедерах не оказалось нужных значений
+// Нужно, чтобы mark сделать с текстом.
+type NoRetryError struct {
+	Reason string
+}
+
+func NewNoRetryError(r string) *NoRetryError {
+	return &NoRetryError{Reason: r}
+}
+
+func (e *NoRetryError) Error() string {
+	return fmt.Sprintf("message does not need to be processed again, because: %s", e.Reason)
+}
+
+type ConsumerGroupStartReadParams struct {
+	MessageHandler
+	OnCleanUp
+	OnSetup
+	Middlewares []Middleware
+}

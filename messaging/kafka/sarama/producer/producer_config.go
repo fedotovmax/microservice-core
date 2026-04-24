@@ -1,4 +1,4 @@
-package sarama
+package producer
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ func (c ProducerConfig) Validate() error {
 
 	for i := range c.Brokers {
 		if c.Brokers[i] == "" {
-			return fmt.Errorf("%s: broker address with index: %d is empty", op)
+			return fmt.Errorf("%s: broker address with index: %d is empty", op, i)
 		}
 	}
 
