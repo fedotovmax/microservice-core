@@ -34,6 +34,7 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 	saramaConfig.Producer.Retry.Backoff = config.RetryBackoff
 
 	// Настройки сброса батча в сеть
+
 	saramaConfig.Producer.Flush.Bytes = config.BatchBytes
 	saramaConfig.Producer.Flush.Messages = config.BatchMessagesCount
 	saramaConfig.Producer.Flush.Frequency = config.BatchFrequency

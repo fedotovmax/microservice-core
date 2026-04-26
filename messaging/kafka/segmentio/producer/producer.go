@@ -33,7 +33,7 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 
 	w := &skafka.Writer{
 		Addr:            skafka.TCP(config.Brokers...),
-		Balancer:        &skafka.LeastBytes{},
+		Balancer:        &skafka.Hash{},
 		RequiredAcks:    skafka.RequiredAcks(int(skafka.RequireAll)), // WaitForAll
 		MaxAttempts:     config.SendMaxRetries,
 		WriteBackoffMin: config.RetryBackoff,
