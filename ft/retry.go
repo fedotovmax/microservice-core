@@ -11,21 +11,21 @@ type Backoff interface {
 	Next(attempt int) time.Duration
 }
 
-type ExponentialBackoff struct {
+type exponentialBackoff struct {
 	BaseDelay time.Duration
 	MaxDelay  time.Duration
 	Jitter    float64
 }
 
-func NewExponentialBackoff(baseDelay, maxDelay time.Duration, jitter float64) *ExponentialBackoff {
-	return &ExponentialBackoff{
+func NewExponentialBackoff(baseDelay, maxDelay time.Duration, jitter float64) *exponentialBackoff {
+	return &exponentialBackoff{
 		BaseDelay: baseDelay,
 		MaxDelay:  maxDelay,
 		Jitter:    jitter,
 	}
 }
 
-func (b *ExponentialBackoff) Next(attempt int) time.Duration {
+func (b *exponentialBackoff) Next(attempt int) time.Duration {
 	// 1. Экспонента: Base * 2^attempt
 	// Используем сдвиг для эффективности или math.Pow
 	exp := math.Pow(2, float64(attempt))

@@ -3,6 +3,8 @@ package postgresql
 import (
 	"context"
 	"time"
+
+	"github.com/fedotovmax/microservice-core/db/tx"
 )
 
 type TxIsoLevel string
@@ -63,6 +65,26 @@ type Tx interface {
 	Executor
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
+}
+
+type Extractor interface {
+	ExtractTx(ctx context.Context) Executor
+}
+
+type ShardedExtractor interface {
+	ExtractTx(ctx context.Context) (Executor, error)
+}
+
+type TxManager interface {
+	Extractor
+	tx.Tx
+	WrapWithOptions(ctx context.Context, fn func(context.Context) error, opt TxOptions) error
+}
+
+type TxShardedManager interface {
+	ShardedExtractor
+	tx.ShardedTx
+	WrapWithOptions(ctx context.Context, key string, fn func(context.Context) error, opt TxOptions) error
 }
 
 type Rows interface {

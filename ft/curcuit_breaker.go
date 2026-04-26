@@ -40,7 +40,7 @@ type CBSettings struct {
 	OnStateChange    func(from, to State)
 }
 
-type CircuitBreaker struct {
+type circuitBreaker struct {
 	settings CBSettings
 	mu       sync.Mutex
 
@@ -51,14 +51,14 @@ type CircuitBreaker struct {
 	lastFailureTime time.Time
 }
 
-func NewCircuitBreaker(st CBSettings) *CircuitBreaker {
+func NewCircuitBreaker(st CBSettings) *circuitBreaker {
 	if st.MaxHalfOpenCalls <= 0 {
 		st.MaxHalfOpenCalls = 1
 	}
-	return &CircuitBreaker{settings: st}
+	return &circuitBreaker{settings: st}
 }
 
-func (cb *CircuitBreaker) Execute(op func() error) (err error) {
+func (cb *circuitBreaker) Execute(op func() error) (err error) {
 	if err = cb.beforeCall(); err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (cb *CircuitBreaker) Execute(op func() error) (err error) {
 	return err
 }
 
-func (cb *CircuitBreaker) setState(newState State) {
+func (cb *circuitBreaker) setState(newState State) {
 	if cb.state == newState {
 		return
 	}
@@ -87,7 +87,7 @@ func (cb *CircuitBreaker) setState(newState State) {
 	}
 }
 
-func (cb *CircuitBreaker) beforeCall() error {
+func (cb *circuitBreaker) beforeCall() error {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
@@ -113,7 +113,7 @@ func (cb *CircuitBreaker) beforeCall() error {
 	}
 }
 
-func (cb *CircuitBreaker) afterCall(err error) {
+func (cb *circuitBreaker) afterCall(err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 

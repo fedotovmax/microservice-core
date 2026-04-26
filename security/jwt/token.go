@@ -6,15 +6,15 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type TokenManager struct {
+type tokenManager struct {
 	config Config
 }
 
-func New(config Config) *TokenManager {
-	return &TokenManager{config: config}
+func New(config Config) *tokenManager {
+	return &tokenManager{config: config}
 }
 
-func (m *TokenManager) Create(p CreateParams) (token string, err error) {
+func (m *tokenManager) Create(p CreateParams) (token string, err error) {
 
 	const op = "core.security.jwt.TokenManager.Create"
 
@@ -40,7 +40,7 @@ func (m *TokenManager) Create(p CreateParams) (token string, err error) {
 	return token, nil
 }
 
-func (m *TokenManager) Verify(token string) (Verified, error) {
+func (m *tokenManager) Verify(token string) (Verified, error) {
 
 	const op = "core.security.jwt.TokenManager.Verify"
 

@@ -6,26 +6,26 @@ const (
 	UnknownStatusCode = -1
 )
 
-type Writer struct {
+type writer struct {
 	http.ResponseWriter
 	code int
 }
 
-func NewWriter(w http.ResponseWriter) *Writer {
-	return &Writer{
+func NewWriter(w http.ResponseWriter) *writer {
+	return &writer{
 		ResponseWriter: w,
 		code:           UnknownStatusCode,
 	}
 }
 
-func (w *Writer) WriteHeader(statusCode int) {
+func (w *writer) WriteHeader(statusCode int) {
 
 	w.ResponseWriter.WriteHeader(statusCode)
 	w.code = statusCode
 
 }
 
-func (w *Writer) StatusCode() int {
+func (w *writer) StatusCode() int {
 
 	if w.code == UnknownStatusCode {
 		return http.StatusOK

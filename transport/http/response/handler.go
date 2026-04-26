@@ -16,19 +16,19 @@ type ErrorResponse struct {
 	Error   string `json:"error" validate:"required"`
 }
 
-type HTTPResponseHandler struct {
+type httpResponseHandler struct {
 	log logger.Logger
 	rw  http.ResponseWriter
 }
 
-func NewHTTPResponseHandler(log logger.Logger, rw http.ResponseWriter) *HTTPResponseHandler {
-	return &HTTPResponseHandler{
+func NewHTTPResponseHandler(log logger.Logger, rw http.ResponseWriter) *httpResponseHandler {
+	return &httpResponseHandler{
 		log: log,
 		rw:  rw,
 	}
 }
 
-func (h *HTTPResponseHandler) HandlePanic(p any, msg string) {
+func (h *httpResponseHandler) HandlePanic(p any, msg string) {
 
 	const op = "core.transport.http.response.HTTPResponseHandler.HandlePanic"
 
@@ -47,7 +47,7 @@ func (h *HTTPResponseHandler) HandlePanic(p any, msg string) {
 
 }
 
-func (h *HTTPResponseHandler) JSON(body any, statusCode int) {
+func (h *httpResponseHandler) JSON(body any, statusCode int) {
 
 	h.rw.Header().Set(core_http.HeaderContentType, core_http.HeaderContentTypeJSON)
 
@@ -62,6 +62,6 @@ func (h *HTTPResponseHandler) JSON(body any, statusCode int) {
 	h.rw.Write(buf.Bytes())
 }
 
-func (h *HTTPResponseHandler) NoContent() {
+func (h *httpResponseHandler) NoContent() {
 	h.rw.WriteHeader(http.StatusNoContent)
 }

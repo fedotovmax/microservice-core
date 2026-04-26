@@ -7,13 +7,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func (l *Logger) Debug(m string, f ...logger.Field) { l.Logger.Debug(m, toZap(f)...) }
-func (l *Logger) Info(m string, f ...logger.Field)  { l.Logger.Info(m, toZap(f)...) }
-func (l *Logger) Warn(m string, f ...logger.Field)  { l.Logger.Warn(m, toZap(f)...) }
-func (l *Logger) Error(m string, f ...logger.Field) { l.Logger.Error(m, toZap(f)...) }
-func (l *Logger) Fatal(m string, f ...logger.Field) { l.Logger.Fatal(m, toZap(f)...) }
-func (l *Logger) With(f ...logger.Field) logger.Logger {
-	return &Logger{
+func (l *zapLogger) Debug(m string, f ...logger.Field) { l.Logger.Debug(m, toZap(f)...) }
+func (l *zapLogger) Info(m string, f ...logger.Field)  { l.Logger.Info(m, toZap(f)...) }
+func (l *zapLogger) Warn(m string, f ...logger.Field)  { l.Logger.Warn(m, toZap(f)...) }
+func (l *zapLogger) Error(m string, f ...logger.Field) { l.Logger.Error(m, toZap(f)...) }
+func (l *zapLogger) Fatal(m string, f ...logger.Field) { l.Logger.Fatal(m, toZap(f)...) }
+func (l *zapLogger) With(f ...logger.Field) logger.Logger {
+	return &zapLogger{
 		Logger: l.Logger.With(toZap(f)...),
 		file:   l.file,
 	}

@@ -18,7 +18,7 @@ type Config struct {
 
 func (c Config) Validate() error {
 
-	const op = "core.network.mail.Config.Validate"
+	const op = "core.transport.smtp.mail.Config.Validate"
 
 	if c.Host == "" {
 		return fmt.Errorf("%s: hostname cannot be empty", op)
@@ -48,7 +48,7 @@ func (c Config) Validate() error {
 
 func NewConfig() (Config, error) {
 
-	const op = "core.network.mail.NewConfig"
+	const op = "core.transport.smtp.mail.NewConfig"
 
 	var config Config
 

@@ -36,7 +36,7 @@ func NewSharded(ctx context.Context, config ShardedConfig) (postgresql.ShardedPo
 	pools := make([]postgresql.Pool, len(pgxpools))
 
 	for i := range pgxpools {
-		pools[i] = &Pool{Pool: pgxpools[i]}
+		pools[i] = &pool{Pool: pgxpools[i]}
 	}
 
 	return &ShardedPool{

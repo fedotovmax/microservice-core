@@ -8,10 +8,8 @@ import (
 	"github.com/fedotovmax/microservice-core/transport/http/middleware"
 	"github.com/fedotovmax/microservice-core/transport/http/request"
 	"github.com/fedotovmax/microservice-core/transport/http/response"
-	httpServer "github.com/fedotovmax/microservice-core/transport/http/server"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -47,16 +45,6 @@ func RegisterHTTPMetrics() {
 		httpRequestDuration,
 		httpErrorsTotal,
 	)
-}
-
-const METRIC_PATH = "/metrics"
-
-func MetricRoute() httpServer.Route {
-	return httpServer.Route{
-		Method:  httpServer.MethodGet,
-		Path:    METRIC_PATH,
-		Handler: promhttp.Handler(),
-	}
 }
 
 func Metrics() middleware.Middleware {

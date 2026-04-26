@@ -10,7 +10,7 @@ import (
 	"github.com/fedotovmax/microservice-core/logger"
 )
 
-type Manager struct {
+type manager struct {
 	log  logger.Logger
 	pool postgresql.Pool
 }
@@ -19,24 +19,47 @@ type transaction struct {
 	postgresql.Tx
 }
 
-func New(conn postgresql.Pool, log logger.Logger) (*Manager, error) {
+func New(conn postgresql.Pool, log logger.Logger) (postgresql.TxManager, error) {
+
 	if conn == nil {
 		return nil, tx.ErrConnRequiredForTx
 	}
-	return &Manager{
+	return &manager{
 		pool: conn,
 		log:  log,
 	}, nil
 }
 
-func (m *Manager) Wrap(ctx context.Context, fn func(context.Context) error) error {
+func (m *manager) WrapWithOptions(ctx context.Context, fn func(context.Context) error, opt postgresql.TxOptions) error {
+
+	const op = "core.db.postgresql.tx.Manager.WrapWithOptions"
 
 	m.mustCheckInit()
-	return m.wrap(ctx, fn)
+
+	trx, err := m.pool.BeginTx(ctx, opt)
+	if err != nil {
+		return fmt.Errorf("%s: cannot start transaction with options: %w", op, err)
+	}
+
+	return m.wrap(ctx, trx, fn)
+}
+
+func (m *manager) Wrap(ctx context.Context, fn func(context.Context) error) error {
+
+	const op = "core.db.postgresql.tx.Manager.Wrap"
+
+	m.mustCheckInit()
+
+	trx, err := m.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("%s: cannot start transaction: %w", op, err)
+	}
+
+	return m.wrap(ctx, trx, fn)
 
 }
 
-func (m *Manager) ExtractTx(ctx context.Context) postgresql.Executor {
+func (m *manager) ExtractTx(ctx context.Context) postgresql.Executor {
 
 	m.mustCheckInit()
 
@@ -48,7 +71,7 @@ func (m *Manager) ExtractTx(ctx context.Context) postgresql.Executor {
 	return executor
 }
 
-func (m *Manager) mustCheckInit() {
+func (m *manager) mustCheckInit() {
 
 	const op = "core.db.postgresql.tx.Manger.mustCheckInit"
 
@@ -62,16 +85,11 @@ func (m *Manager) mustCheckInit() {
 
 }
 
-func (m *Manager) wrap(ctx context.Context, fn func(context.Context) error) error {
+func (m *manager) wrap(ctx context.Context, trx postgresql.Tx, fn func(context.Context) error) error {
 
 	const op = "core.db.postgresql.tx.Manager.wrap"
 
 	l := m.log.With(logger.String("op", op))
-
-	trx, err := m.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("%s: pool.Begin: cannot start transaction: %w", op, err)
-	}
 
 	defer func() {
 		rollbackErr := trx.Rollback(ctx)
@@ -84,7 +102,7 @@ func (m *Manager) wrap(ctx context.Context, fn func(context.Context) error) erro
 
 	ctx = context.WithValue(ctx, txCtxKey{}, &transaction{trx})
 
-	err = fn(ctx)
+	err := fn(ctx)
 
 	if err != nil {
 		return fmt.Errorf("%s: error when execute transaction fn: %w", op, err)

@@ -27,7 +27,7 @@ type Sender struct {
 
 func New(config Config) (*Sender, error) {
 
-	const op = "core.network.mail.New"
+	const op = "core.transport.smtp.mail.New"
 
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
@@ -49,7 +49,7 @@ func New(config Config) (*Sender, error) {
 
 func (s *Sender) SendHTML(ctx context.Context, m HTMLMessage) error {
 
-	const op = "core.network.mail.Service.SendHTML"
+	const op = "core.transport.smtp.mail.Service.SendHTML"
 
 	if err := m.Validate(); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
@@ -73,7 +73,7 @@ func (s *Sender) SendHTML(ctx context.Context, m HTMLMessage) error {
 
 func (s *Sender) SendTextMessage(ctx context.Context, m TextMessage) error {
 
-	const op = "core.network.mail.Service.SendTextMessage"
+	const op = "core.transport.smtp.mail.Service.SendTextMessage"
 
 	if err := m.Validate(); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
@@ -97,7 +97,7 @@ func (s *Sender) SendTextMessage(ctx context.Context, m TextMessage) error {
 
 func (s *Sender) send(ctx context.Context, m *gomail.Message) error {
 
-	const op = "core.network.mail.Service.send"
+	const op = "core.transport.smtp.mail.Service.send"
 
 	errCh := make(chan error, 1)
 

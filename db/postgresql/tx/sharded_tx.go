@@ -10,44 +10,73 @@ import (
 	"github.com/fedotovmax/microservice-core/logger"
 )
 
-type ShardedManager struct {
+type shardedManager struct {
 	log  logger.Logger
 	pool postgresql.ShardedPool
 }
 
-type shardedTransaction struct {
-	postgresql.Tx
-	shardIdx uint32
-}
+// type shardedTransaction struct {
+// 	postgresql.Tx
+// 	shardIdx uint32
+// }
 
-func NewSharded(pool postgresql.ShardedPool, log logger.Logger) (*ShardedManager, error) {
+func NewSharded(pool postgresql.ShardedPool, log logger.Logger) (postgresql.TxShardedManager, error) {
 
 	if pool == nil {
 		return nil, tx.ErrConnRequiredForTx
 	}
 
-	return &ShardedManager{
+	return &shardedManager{
 		pool: pool,
 		log:  log,
 	}, nil
 }
 
-func (m *ShardedManager) Wrap(ctx context.Context, key string, fn func(context.Context) error) error {
+func (m *shardedManager) WrapWithOptions(ctx context.Context, key string, fn func(context.Context) error, opt postgresql.TxOptions) error {
+
+	const op = "core.db.postgresql.tx.Manger.WrapWithOptions"
+
+	idx := m.pool.GetIndex(key)
+
+	p := m.pool.GetPoolByIndex(idx)
+
+	trx, err := p.BeginTx(ctx, opt)
+	if err != nil {
+		return fmt.Errorf("%s: pool.Begin: cannot start transaction: %w", op, err)
+	}
 
 	m.mustCheckInit()
-	return m.wrap(ctx, key, fn)
+	return m.wrap(ctx, trx, fn)
 
 }
 
-func (m *ShardedManager) WithKey(ctx context.Context, key string) context.Context {
+func (m *shardedManager) Wrap(ctx context.Context, key string, fn func(context.Context) error) error {
+
+	const op = "core.db.postgresql.tx.Manger.Wrap"
+
+	idx := m.pool.GetIndex(key)
+
+	p := m.pool.GetPoolByIndex(idx)
+
+	trx, err := p.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("%s: pool.Begin: cannot start transaction: %w", op, err)
+	}
+
+	m.mustCheckInit()
+	return m.wrap(ctx, trx, fn)
+
+}
+
+func (m *shardedManager) WithKey(ctx context.Context, key string) context.Context {
 	return context.WithValue(ctx, shardKeyCtxKey{}, key)
 }
 
-func (m *ShardedManager) ExtractTx(ctx context.Context) (postgresql.Executor, error) {
+func (m *shardedManager) ExtractTx(ctx context.Context) (postgresql.Executor, error) {
 
 	m.mustCheckInit()
 
-	t, ok := ctx.Value(txCtxKey{}).(*shardedTransaction)
+	t, ok := ctx.Value(txCtxKey{}).(postgresql.Tx)
 
 	if ok {
 		return t, nil
@@ -61,7 +90,7 @@ func (m *ShardedManager) ExtractTx(ctx context.Context) (postgresql.Executor, er
 
 }
 
-func (m *ShardedManager) mustCheckInit() {
+func (m *shardedManager) mustCheckInit() {
 
 	const op = "core.db.postgresql.tx.Manger.mustCheckInit"
 
@@ -75,20 +104,11 @@ func (m *ShardedManager) mustCheckInit() {
 
 }
 
-func (m *ShardedManager) wrap(ctx context.Context, key string, fn func(context.Context) error) error {
+func (m *shardedManager) wrap(ctx context.Context, trx postgresql.Tx, fn func(context.Context) error) error {
 
 	const op = "core.db.postgresql.tx.Manager.wrap"
 
 	l := m.log.With(logger.String("op", op))
-
-	idx := m.pool.GetIndex(key)
-
-	p := m.pool.GetPoolByIndex(idx)
-
-	trx, err := p.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("%s: pool.Begin: cannot start transaction: %w", op, err)
-	}
 
 	defer func() {
 		rollbackErr := trx.Rollback(ctx)
@@ -99,9 +119,9 @@ func (m *ShardedManager) wrap(ctx context.Context, key string, fn func(context.C
 		}
 	}()
 
-	ctx = context.WithValue(ctx, txCtxKey{}, &shardedTransaction{Tx: trx, shardIdx: idx})
+	ctx = context.WithValue(ctx, txCtxKey{}, trx)
 
-	err = fn(ctx)
+	err := fn(ctx)
 
 	if err != nil {
 		return fmt.Errorf("%s: error when execute transaction fn: %w", op, err)

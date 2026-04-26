@@ -2,3 +2,4 @@
 main.go
 .env
 Makefile
+.old

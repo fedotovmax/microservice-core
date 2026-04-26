@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type Logger struct {
+type zapLogger struct {
 	*zap.Logger
 	atom zap.AtomicLevel
 	file *os.File
@@ -46,7 +46,7 @@ func New(config Config) (logger.Logger, error) {
 	return l, nil
 }
 
-func (l *Logger) SetLevel(level string) error {
+func (l *zapLogger) SetLevel(level string) error {
 	const op = "core.logger.zap.Logger.SetLevel"
 
 	loggerLevel := Level(level)
@@ -61,7 +61,7 @@ func (l *Logger) SetLevel(level string) error {
 	return nil
 }
 
-func (l *Logger) Stop() {
+func (l *zapLogger) Stop() {
 	const op = "core.logger.zap.Logger.Stop"
 
 	// Сначала сбрасываем буфер.
@@ -117,7 +117,7 @@ func initWithLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, 
 
 	l := zap.New(core)
 
-	return &Logger{
+	return &zapLogger{
 		Logger: l,
 		atom:   zapLevel,
 		file:   logFile,
@@ -140,7 +140,7 @@ func initWithoutLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logge
 
 	l := zap.New(core)
 
-	return &Logger{Logger: l, atom: zapLevel}, nil
+	return &zapLogger{Logger: l, atom: zapLevel}, nil
 }
 
 func chooseEncoding(encoding Encoding) (zapcore.Encoder, error) {

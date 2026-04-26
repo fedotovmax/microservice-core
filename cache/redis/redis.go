@@ -22,16 +22,17 @@ type Redis interface {
 	GetInt64(ctx context.Context, key string) (int64, error)
 	GetFloat64(ctx context.Context, key string) (float64, error)
 	GetBool(ctx context.Context, key string) (bool, error)
+	GetBytes(ctx context.Context, key string, dest any) ([]byte, error)
 	GetJSON(ctx context.Context, key string, dest any) error
 	Stop(ctx context.Context) error
 }
 
-type Pool struct {
+type pool struct {
 	*redis.Client
 	log *slog.Logger
 }
 
-func New(ctx context.Context, config Config, log *slog.Logger) (*Pool, error) {
+func New(ctx context.Context, config Config, log *slog.Logger) (*pool, error) {
 
 	const op = "core.cache.redis.New"
 
@@ -58,14 +59,14 @@ func New(ctx context.Context, config Config, log *slog.Logger) (*Pool, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return &Pool{
+	return &pool{
 		Client: redisClient,
 		log:    log,
 	}, nil
 
 }
 
-func (p *Pool) Set(ctx context.Context, key string, value any, exp time.Duration) error {
+func (p *pool) Set(ctx context.Context, key string, value any, exp time.Duration) error {
 
 	err := p.Client.Set(ctx, key, value, exp).Err()
 
@@ -77,7 +78,7 @@ func (p *Pool) Set(ctx context.Context, key string, value any, exp time.Duration
 
 }
 
-func (p *Pool) SetIfNotExist(ctx context.Context, key string, value any, exp time.Duration) error {
+func (p *pool) SetIfNotExist(ctx context.Context, key string, value any, exp time.Duration) error {
 
 	err := p.Client.SetArgs(ctx, key, value, redis.SetArgs{
 		Mode: "NX",
@@ -94,7 +95,7 @@ func (p *Pool) SetIfNotExist(ctx context.Context, key string, value any, exp tim
 	return nil
 }
 
-func (p *Pool) Get(ctx context.Context, key string) (string, error) {
+func (p *pool) Get(ctx context.Context, key string) (string, error) {
 
 	value, err := p.Client.Get(ctx, key).Result()
 
@@ -107,7 +108,7 @@ func (p *Pool) Get(ctx context.Context, key string) (string, error) {
 	return value, nil
 }
 
-func (p *Pool) GetInt64(ctx context.Context, key string) (int64, error) {
+func (p *pool) GetInt64(ctx context.Context, key string) (int64, error) {
 
 	value, err := p.Client.Get(ctx, key).Int64()
 
@@ -120,7 +121,7 @@ func (p *Pool) GetInt64(ctx context.Context, key string) (int64, error) {
 	return value, nil
 }
 
-func (p *Pool) GetBool(ctx context.Context, key string) (bool, error) {
+func (p *pool) GetBool(ctx context.Context, key string) (bool, error) {
 
 	value, err := p.Client.Get(ctx, key).Bool()
 
@@ -133,7 +134,7 @@ func (p *Pool) GetBool(ctx context.Context, key string) (bool, error) {
 	return value, nil
 }
 
-func (p *Pool) GetFloat64(ctx context.Context, key string) (float64, error) {
+func (p *pool) GetFloat64(ctx context.Context, key string) (float64, error) {
 
 	value, err := p.Client.Get(ctx, key).Float64()
 
@@ -146,7 +147,20 @@ func (p *Pool) GetFloat64(ctx context.Context, key string) (float64, error) {
 	return value, nil
 }
 
-func (p *Pool) GetJSON(ctx context.Context, key string, dest any) error {
+func (p *pool) GetBytes(ctx context.Context, key string, dest any) ([]byte, error) {
+
+	value, err := p.Client.Get(ctx, key).Bytes()
+
+	if err != nil {
+		if err == redis.Nil {
+			return nil, ErrKeyNotExists
+		}
+		return nil, err
+	}
+	return value, nil
+}
+
+func (p *pool) GetJSON(ctx context.Context, key string, dest any) error {
 
 	value, err := p.Client.Get(ctx, key).Bytes()
 
@@ -166,7 +180,7 @@ func (p *Pool) GetJSON(ctx context.Context, key string, dest any) error {
 	return nil
 }
 
-func (p *Pool) Delete(ctx context.Context, keys ...string) error {
+func (p *pool) Delete(ctx context.Context, keys ...string) error {
 
 	if err := p.Client.Del(ctx, keys...).Err(); err != nil {
 		return err
@@ -177,12 +191,12 @@ func (p *Pool) Delete(ctx context.Context, keys ...string) error {
 }
 
 // Здесь мы просто пробрасываем exp как Duration дальше
-func (p *Pool) IncInt64(ctx context.Context, key string, exp time.Duration) (int64, error) {
+func (p *pool) IncInt64(ctx context.Context, key string, exp time.Duration) (int64, error) {
 	return p.IncInt64By(ctx, key, 1, exp)
 }
 
 // А здесь уже происходит магия конвертации
-func (p *Pool) IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error) {
+func (p *pool) IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error) {
 
 	// Обязательно вызываем .Milliseconds() здесь, чтобы в Lua ушло число, а не объект или строка типа "1s"
 	res, err := luaIncrInt.Run(ctx, p.Client, []string{key}, incr, exp.Milliseconds()).Int64()
@@ -193,12 +207,12 @@ func (p *Pool) IncInt64By(ctx context.Context, key string, incr int64, exp time.
 	return res, nil
 }
 
-func (p *Pool) IncFloat64(ctx context.Context, key string, exp time.Duration) (float64, error) {
+func (p *pool) IncFloat64(ctx context.Context, key string, exp time.Duration) (float64, error) {
 	return p.IncFloat64By(ctx, key, 1.0, exp)
 }
 
 // IncFloat64By увеличивает значение ключа на произвольное дробное число
-func (p *Pool) IncFloat64By(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error) {
+func (p *pool) IncFloat64By(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error) {
 
 	// Используем .Float64() для получения результата из скрипта
 	// Передаем exp.Milliseconds() в качестве второго аргумента (ARGV[2])
@@ -210,57 +224,7 @@ func (p *Pool) IncFloat64By(ctx context.Context, key string, incr float64, exp t
 	return res, nil
 }
 
-// func (p *Pool) IncInt64(ctx context.Context, key string, exp time.Duration) (int64, error) {
-// 	newInt, err := p.Client.Incr(ctx, key).Result()
-
-// 	if err != nil {
-// 		return 0, err
-// 	}
-
-// 	if newInt == 1 && exp > 0 {
-// 		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
-// 			return 0, err
-// 		}
-// 	}
-
-// 	return newInt, nil
-// }
-
-// func (p *Pool) IncInt64By(ctx context.Context, key string, incr int64, exp time.Duration) (int64, error) {
-
-// 	newInt, err := p.Client.IncrBy(ctx, key, incr).Result()
-
-// 	if err != nil {
-// 		return 0, err
-// 	}
-
-// 	if newInt == incr && exp > 0 {
-// 		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
-// 			return 0, err
-// 		}
-// 	}
-
-// 	return newInt, nil
-// }
-
-// func (p *Pool) IncFloat64(ctx context.Context, key string, incr float64, exp time.Duration) (float64, error) {
-
-// 	newFloat, err := p.Client.IncrByFloat(ctx, key, incr).Result()
-
-// 	if err != nil {
-// 		return 0, err
-// 	}
-
-// 	if newFloat == incr && exp > 0 {
-// 		if err := p.Client.Expire(ctx, key, exp).Err(); err != nil {
-// 			return 0, err
-// 		}
-// 	}
-
-// 	return newFloat, nil
-// }
-
-func (r *Pool) Stop(ctx context.Context) error {
+func (r *pool) Stop(ctx context.Context) error {
 
 	const op = "core.cache.redis.Pool.Stop"
 
