@@ -1,4 +1,4 @@
-package producer
+package kafka
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ type ProducerConfig struct {
 }
 
 func (c ProducerConfig) Validate() error {
-	const op = "core.messaging.kafka.sarama.ProducerConfig.Validate"
+	const op = "core.messaging.kafka.ProducerConfig.Validate"
 
 	if len(c.Brokers) == 0 {
 		return fmt.Errorf("%s: at least one broker is required", op)

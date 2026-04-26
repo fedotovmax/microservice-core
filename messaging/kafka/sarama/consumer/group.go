@@ -16,12 +16,12 @@ type group struct {
 	isStopped   chan struct{}
 	stopCtx     context.Context
 	stopCtxFunc func()
-	config      GroupConfig
+	config      kafka.GroupConfig
 	stopOnce    sync.Once // Гарантирует, что закроем всё один раз
 
 }
 
-func NewGroup(log logger.Logger, config GroupConfig) (kafka.ConsumerGroup, error) {
+func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup, error) {
 
 	const op = "core.messaging.kafka.sarama.consumer.NewGroup"
 
@@ -45,6 +45,7 @@ func NewGroup(log logger.Logger, config GroupConfig) (kafka.ConsumerGroup, error
 
 	cfg.Consumer.Group.Session.Timeout = config.SessionTimeout
 	cfg.Consumer.Group.Heartbeat.Interval = config.HeartbeatInterval
+
 	cfg.Consumer.Group.Rebalance.Timeout = config.RebalanceTimeout
 
 	cfg.Consumer.MaxWaitTime = config.MaxWaitTime

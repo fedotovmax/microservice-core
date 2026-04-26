@@ -6,18 +6,17 @@ import (
 
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
-	coreSarama "github.com/fedotovmax/microservice-core/messaging/kafka/sarama"
+	"github.com/fedotovmax/microservice-core/messaging/kafka/segmentio"
 )
 
 func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSuccess) {
 
-	const op = "core.messaging.kafka.sarama.producer.HandleSuccesses"
+	const op = "core.messaging.kafka.segmentio.producer.HandleSuccesses"
 
 	log := p.log.With(logger.String("op", op))
 
-	for event := range p.ap.Successes() {
-
-		successEvent := kafka.NewSuccessEvent(event.Metadata, coreSarama.HeadersFromSarama(event.Headers))
+	for m := range p.successCh {
+		successEvent := kafka.NewSuccessEvent(m.WriterData, segmentio.HeadersFromSegmentio(m.Headers))
 
 		err := p.handleSuccess(successEvent, timeout, onSuccess)
 

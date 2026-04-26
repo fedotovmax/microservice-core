@@ -1,7 +1,6 @@
 package kafka
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
@@ -52,7 +51,7 @@ type Header struct {
 type Event struct {
 	key     string
 	topic   string
-	payload json.RawMessage
+	payload []byte
 	headers []Header
 	meta    any
 }
@@ -60,7 +59,7 @@ type Event struct {
 func NewEvent(
 	key string,
 	topic string,
-	payload json.RawMessage,
+	payload []byte,
 	headers []Header,
 	meta any,
 ) Event {
@@ -89,12 +88,12 @@ func (e Event) Key() string {
 	return e.key
 }
 
-func (e Event) Payload() json.RawMessage {
+func (e Event) Payload() []byte {
 	return e.payload
 }
 
 type ConsumeEvent struct {
-	payload   json.RawMessage
+	payload   []byte
 	key       []byte
 	offset    int64
 	topic     string
@@ -103,7 +102,7 @@ type ConsumeEvent struct {
 }
 
 func NewConsumeEvent(
-	payload json.RawMessage,
+	payload []byte,
 	key []byte,
 	offset int64,
 	topic string,
@@ -120,7 +119,7 @@ func NewConsumeEvent(
 	}
 }
 
-func (e *ConsumeEvent) Payload() json.RawMessage {
+func (e *ConsumeEvent) Payload() []byte {
 	return e.payload
 }
 

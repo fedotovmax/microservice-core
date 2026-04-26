@@ -17,7 +17,7 @@ func (p *producer) Send(ctx context.Context, event kafka.Event) error {
 		Topic:    event.Topic(),
 		Key:      sarama.StringEncoder(event.Key()),
 		Value:    sarama.ByteEncoder(event.Payload()),
-		Headers:  coreSarama.CoreHeadersToSarama(event.Headers()),
+		Headers:  coreSarama.HeadersToSarama(event.Headers()),
 		Metadata: event.Meta(),
 	}
 

@@ -5,47 +5,46 @@ import (
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 )
 
-func CoreHeadersToSarama(headers []kafka.Header) []sarama.RecordHeader {
+func HeadersToSarama(h []kafka.Header) []sarama.RecordHeader {
 
-	saramaHeaders := make([]sarama.RecordHeader, 0, len(headers))
+	hs := make([]sarama.RecordHeader, 0, len(h))
 
-	for _, h := range headers {
-		sh := sarama.RecordHeader{Key: h.Key, Value: h.Value}
-		saramaHeaders = append(saramaHeaders, sh)
+	for idx := range h {
+		hs = append(hs, sarama.RecordHeader{Key: h[idx].Key, Value: h[idx].Value})
 	}
-
-	return saramaHeaders
+	return hs
 }
 
-func SaramaHeadersToCore(headers []sarama.RecordHeader) []kafka.Header {
-	coreHeaders := make([]kafka.Header, 0, len(headers))
+func HeadersFromSarama(h []sarama.RecordHeader) []kafka.Header {
 
-	for _, h := range headers {
-		ch := kafka.Header{Key: h.Key, Value: h.Value}
-		coreHeaders = append(coreHeaders, ch)
+	hs := make([]kafka.Header, 0, len(h))
+
+	for idx := range h {
+		hs = append(hs, kafka.Header{Key: h[idx].Key, Value: h[idx].Value})
 	}
 
-	return coreHeaders
+	return hs
 }
 
-func SaramaPtrHeadersToCore(headers []*sarama.RecordHeader) []kafka.Header {
-	coreHeaders := make([]kafka.Header, 0, len(headers))
+func HeadersFromPtrSarama(h []*sarama.RecordHeader) []kafka.Header {
 
-	for _, h := range headers {
-		if h == nil {
+	hs := make([]kafka.Header, 0, len(h))
+
+	for idx := range h {
+		if h[idx] == nil {
 			continue
 		}
-		ch := kafka.Header{
-			Key:   h.Key,
-			Value: h.Value,
-		}
-		coreHeaders = append(coreHeaders, ch)
+		hs = append(hs, kafka.Header{
+			Key:   h[idx].Key,
+			Value: h[idx].Value,
+		})
 	}
 
-	return coreHeaders
+	return hs
 }
 
-func extractValue(msg *sarama.ProducerMessage) ([]byte, error) {
+// TODO: maybe add payload for Success, Failed Events??
+func ExtractValue(msg *sarama.ProducerMessage) ([]byte, error) {
 	if msg.Value == nil {
 		return nil, nil
 	}

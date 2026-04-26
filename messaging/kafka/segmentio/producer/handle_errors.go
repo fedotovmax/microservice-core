@@ -6,18 +6,19 @@ import (
 
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
-	coreSarama "github.com/fedotovmax/microservice-core/messaging/kafka/sarama"
+	"github.com/fedotovmax/microservice-core/messaging/kafka/segmentio"
 )
 
 func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 
-	const op = "core.messaging.kafka.sarama.producer.HandleErrors"
+	const op = "core.messaging.kafka.segmentio.producer.HandleErrors"
 
 	log := p.log.With(logger.String("op", op))
 
-	for event := range p.ap.Errors() {
+	for m := range p.errCh {
 
-		failedEvent := kafka.NewFailedEvent(event.Msg.Metadata, coreSarama.HeadersFromSarama(event.Msg.Headers), event.Err)
+		// Извлекаем сохраненную ошибку и метаданные
+		failedEvent := kafka.NewFailedEvent(m.WriterData, segmentio.HeadersFromSegmentio(m.Headers), m.Error)
 
 		err := p.handleError(failedEvent, timeout, onError)
 

@@ -71,7 +71,7 @@ func (h *groupHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.Cons
 
 			payload := msg.Value
 
-			ev := kafka.NewConsumeEvent(payload, msg.Key, msg.Offset, msg.Topic, msg.Partition, coreSarama.SaramaPtrHeadersToCore(msg.Headers))
+			ev := kafka.NewConsumeEvent(payload, msg.Key, msg.Offset, msg.Topic, msg.Partition, coreSarama.HeadersFromPtrSarama(msg.Headers))
 
 			if err := h.handle(s.Context(), ev); err != nil {
 				if noRetryErr, ok := errors.AsType[*kafka.NoRetryError](err); ok {

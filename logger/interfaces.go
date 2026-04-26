@@ -14,6 +14,7 @@ type FieldType int
 const (
 	TypeString FieldType = iota
 	TypeInt
+	TypeInt64
 	TypeFloat64
 	TypeBool
 	TypeError
@@ -40,6 +41,10 @@ func String(key, val string) Field {
 
 func Int(key string, val int) Field {
 	return Field{Key: key, Value: val, Type: TypeInt}
+}
+
+func Int64(key string, val int64) Field {
+	return Field{Key: key, Value: val, Type: TypeInt64}
 }
 
 func Float64(key string, val float64) Field {

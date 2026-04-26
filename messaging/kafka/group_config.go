@@ -1,4 +1,4 @@
-package consumer
+package kafka
 
 import (
 	"fmt"
@@ -17,23 +17,25 @@ type GroupConfig struct {
 	GroupID string   `envconfig:"KAFKA_CONSUMER_GROUP_GROUP_ID" required:"true"`
 
 	BackoffMaxInterval time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_BACKOFF_MAX_INTERVAL" required:"true" default:"25s"`
-	CommitInterval     time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_COMMIT_INTERVAL" required:"true" default:"10s"`
 	BackoffMinInterval time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_BACKOFF_MIN_INTERVAL" required:"true" default:"1s"`
+	CommitInterval     time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_COMMIT_INTERVAL" required:"true" default:"10s"`
 	MaxProcessingTime  time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_MAX_PROCESSING_TIME" required:"true" default:"10s"`
 
-	DialTimeout       time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_DIAL_TIMEOUT" default:"5s"`
-	ReadTimeout       time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_READ_TIMEOUT" default:"10s"`
-	SessionTimeout    time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_SESSION_TIMEOUT" default:"30s"`
+	DialTimeout    time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_DIAL_TIMEOUT" default:"5s"`
+	ReadTimeout    time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_READ_TIMEOUT" default:"10s"`
+	SessionTimeout time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_SESSION_TIMEOUT" default:"30s"`
+
+	// HeartbeatInterval only for sarama, do not provide if use segmentio
 	HeartbeatInterval time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_HEARTBEAT_INTERVAL" default:"3s"`
 	RebalanceTimeout  time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_REBALANCE_TIMEOUT" default:"60s"`
-	MaxWaitTime       time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_MAX_WAIT_TIME" default:"500ms"`
 
-	//CommitBatchSize    int           `envconfig:"KAFKA_CONSUMER_GROUP_COMMIT_BATCH_SIZE" required:"true" default:"30"`
+	// MaxWaitTime only for sarama, do not provide if use segmentio
+	MaxWaitTime time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_MAX_WAIT_TIME" default:"500ms"`
 }
 
 func (c GroupConfig) Validate() error {
 
-	const op = "core.messaging.kafka.sarama.GroupConfig.Validate"
+	const op = "core.messaging.kafka.GroupConfig.Validate"
 
 	if len(c.Brokers) == 0 {
 		return fmt.Errorf("%s: at least one broker is required", op)

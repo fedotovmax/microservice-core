@@ -1,8 +1,6 @@
 package outbox
 
 import (
-	"encoding/json"
-
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 )
 
@@ -10,14 +8,14 @@ type Input struct {
 	key     string
 	topic   string
 	headers []Header
-	payload json.RawMessage
+	payload []byte
 }
 
 func NewInput(
 	key string,
 	topic string,
 	headers []Header,
-	payload json.RawMessage,
+	payload []byte,
 ) Input {
 	return Input{
 		key:     key,
@@ -39,7 +37,7 @@ func (e Input) Key() string {
 	return e.key
 }
 
-func (e Input) Payload() json.RawMessage {
+func (e Input) Payload() []byte {
 	return e.payload
 }
 
