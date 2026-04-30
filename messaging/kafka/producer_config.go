@@ -3,28 +3,25 @@ package kafka
 import (
 	"fmt"
 	"time"
-
-	"github.com/kelseyhightower/envconfig"
 )
 
 type ProducerConfig struct {
-	Brokers []string `envconfig:"KAFKA_PRODUCER_BROKERS" required:"true"`
+	Brokers []string
 	// Увеличиваем буфер канала. Если он будет меньше BatchLimit из Outbox,
 	// метод Send() будет блокироваться и тормозить цикл вычитки из БД.
-	ChannelBufferSize int `envconfig:"KAFKA_PRODUCER_CHANNEL_BUFFER_SIZE" default:"256"`
+	ChannelBufferSize int
 
 	// Ретраи на уровне Sarama.
 	// Для Outbox лучше ставить 3-5, чтобы быстрее получить ошибку и
 	// вернуть событие в обработку через БД, а не висеть в памяти продюсера.
-	SendMaxRetries int           `envconfig:"KAFKA_PRODUCER_SEND_MAX_RETRIES" default:"3"`
-	RetryBackoff   time.Duration `envconfig:"KAFKA_PRODUCER_RETRY_BACKOFF" default:"100ms"`
-
+	SendMaxRetries int
+	RetryBackoff   time.Duration
 	// Батчинг (Flush). Эти настройки определяют, когда Sarama реально отправит пакет в сеть.
-	BatchFrequency time.Duration `envconfig:"KAFKA_PRODUCER_BATCH_FREQUENCY" default:"100ms"`
-	BatchBytes     int           `envconfig:"KAFKA_PRODUCER_BATCH_BYTES" default:"1048576"` // 1MB - хороший стандарт
+	BatchFrequency time.Duration
+	BatchBytes     int // 1MB - хороший стандарт
 	// Должен коррелировать с BatchLimit в Outbox.
 	// Если в Outbox лимит 100, а тут 300, Sarama будет ждать 3 итерации Outbox или таймаута Frequency.
-	BatchMessagesCount int `envconfig:"KAFKA_PRODUCER_BATCH_MESSAGES_COUNT" default:"100"`
+	BatchMessagesCount int
 }
 
 func (c ProducerConfig) Validate() error {
@@ -62,23 +59,4 @@ func (c ProducerConfig) Validate() error {
 	}
 
 	return nil
-}
-func NewProducerConfig() (ProducerConfig, error) {
-	var config ProducerConfig
-
-	if err := envconfig.Process("", &config); err != nil {
-		return ProducerConfig{}, fmt.Errorf("error when parse kafka producer env variables: %w", err)
-	}
-
-	return config, nil
-}
-
-func NewProducerConfigMust() ProducerConfig {
-	config, err := NewProducerConfig()
-
-	if err != nil {
-		panic(err)
-	}
-
-	return config
 }

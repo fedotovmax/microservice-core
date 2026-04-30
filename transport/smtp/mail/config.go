@@ -4,16 +4,14 @@ import (
 	"fmt"
 	"net/mail"
 	"unicode/utf8"
-
-	"github.com/kelseyhightower/envconfig"
 )
 
 type Config struct {
-	Host        string `envconfig:"SMTP_HOST" required:"true"`
-	Port        int    `envconfig:"SMTP_PORT" required:"true"`
-	Secret      string `envconfig:"SMTP_SECRET" required:"true"`
-	Sender      string `envconfig:"SMTP_SENDER" required:"true"`
-	DisplayName string `envconfig:"SMTP_DISPLAY_NAME" required:"true"`
+	Host        string
+	Port        int
+	Secret      string
+	Sender      string
+	DisplayName string
 }
 
 func (c Config) Validate() error {
@@ -44,31 +42,4 @@ func (c Config) Validate() error {
 
 	return nil
 
-}
-
-func NewConfig() (Config, error) {
-
-	const op = "core.transport.smtp.mail.NewConfig"
-
-	var config Config
-
-	err := envconfig.Process("SMTP_", &config)
-
-	if err != nil {
-		return Config{}, fmt.Errorf("%s: error when parse mail env variables: %w", op, err)
-	}
-
-	return config, nil
-
-}
-
-func NewConfigMust() Config {
-
-	config, err := NewConfig()
-
-	if err != nil {
-		panic(err)
-	}
-
-	return config
 }

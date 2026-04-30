@@ -1,5 +1,5 @@
 .DS_Store
 main.go
 .env
-Makefile
+Taskfile.yaml
 .old

@@ -2,8 +2,6 @@ package zap
 
 import (
 	"fmt"
-
-	"github.com/kelseyhightower/envconfig"
 )
 
 type Level string
@@ -53,8 +51,8 @@ const (
 )
 
 type LogFolder struct {
-	Enable bool   `envconfig:"LOGGER_LOG_FOLDER_ENABLE" default:"false"`
-	Path   string `envconfig:"LOGGER_LOG_FOLDER_PATH" default:""`
+	Enable bool
+	Path   string
 }
 
 func (f LogFolder) Validate() error {
@@ -69,8 +67,8 @@ func (f LogFolder) Validate() error {
 
 type Config struct {
 	LogFolder LogFolder
-	Level     Level    `envconfig:"LOGGER_LEVEL" default:"debug"`
-	Encoding  Encoding `envconfig:"LOGGER_ENCODING" default:"plain-text"`
+	Level     Level
+	Encoding  Encoding
 }
 
 func (c Config) Validate() error {
@@ -94,29 +92,4 @@ func (c Config) Validate() error {
 
 	return nil
 
-}
-
-func NewConfig() (Config, error) {
-
-	const op = "core.logger.zap.NewConfig"
-
-	var config Config
-
-	err := envconfig.Process("", &config)
-	if err != nil {
-		return Config{}, fmt.Errorf("%s: error when parse logger env variables: %w", op, err)
-	}
-
-	return config, nil
-}
-
-func NewConfigMust() Config {
-
-	config, err := NewConfig()
-
-	if err != nil {
-		panic(err)
-	}
-
-	return config
 }

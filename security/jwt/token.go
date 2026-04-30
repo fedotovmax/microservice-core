@@ -1,48 +1,53 @@
 package jwt
 
 import (
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type tokenManager struct {
+type tokenManager[T any] struct {
 	config Config
 }
 
-func New(config Config) *tokenManager {
-	return &tokenManager{config: config}
+type claimsWrapper[T any] struct {
+	jwt.RegisteredClaims
+	Data T `json:"dat"`
 }
 
-func (m *tokenManager) Create(p CreateParams) (token string, err error) {
+func New[T any](config Config) *tokenManager[T] {
+	return &tokenManager[T]{config: config}
+}
 
-	const op = "core.security.jwt.TokenManager.Create"
+func (m *tokenManager[T]) Create(cl Claims, payload T, ttl time.Duration) (string, error) {
+	const op = "core.security.jwt.tokenManager.Create"
 
-	accessClaims := jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(p.TokenExpiresAt),
-		IssuedAt:  jwt.NewNumericDate(p.Now),
-		Issuer:    m.config.Issuer,
-		ID:        p.Sid,
-		Subject:   p.Uid,
+	now := time.Now()
+
+	claims := claimsWrapper[T]{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   cl.Subject,
+			ID:        cl.ID,
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			Issuer:    m.config.Issuer,
+		},
+		Data: payload,
 	}
-
-	accessTokenObject := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-
-	token, err = accessTokenObject.SignedString([]byte(m.config.Secret))
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(m.config.Secret))
 
 	if err != nil {
-
-		err = fmt.Errorf("%s: %w", op, err)
-
-		return "", err
+		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
 	return token, nil
 }
 
-func (m *tokenManager) Verify(token string) (Verified, error) {
+func (m *tokenManager[T]) Verify(tokenStr string) (Verified[T], error) {
 
-	const op = "core.security.jwt.TokenManager.Verify"
+	const op = "core.security.jwt.tokenManager.Verify"
 
 	opts := []jwt.ParserOption{
 		jwt.WithExpirationRequired(),
@@ -51,27 +56,32 @@ func (m *tokenManager) Verify(token string) (Verified, error) {
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
 	}
 
-	result, err := jwt.ParseWithClaims(token, &jwt.RegisteredClaims{}, func(t *jwt.Token) (any, error) {
+	var wrapper claimsWrapper[T]
+
+	token, err := jwt.ParseWithClaims(tokenStr, &wrapper, func(t *jwt.Token) (any, error) {
 		return []byte(m.config.Secret), nil
 	}, opts...)
 
 	if err != nil {
-		return Verified{}, fmt.Errorf("%s: %w: %v", op, ErrParseClaims, err)
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			return Verified[T]{}, fmt.Errorf("%s: %w: %v", op, ErrTokenExpired, err)
+		}
+
+		if errors.Is(err, jwt.ErrSignatureInvalid) {
+			return Verified[T]{}, fmt.Errorf("%s: %w: %v", op, ErrInvalidToken, err)
+		}
+
+		return Verified[T]{}, fmt.Errorf("%s: %w: %v", op, ErrParseClaims, err)
 	}
 
-	if !result.Valid {
-		return Verified{}, fmt.Errorf("%s: %w", op, ErrInvalidToken)
+	if !token.Valid {
+		return Verified[T]{}, fmt.Errorf("%s: %w", op, ErrInvalidToken)
 	}
 
-	claims, ok := result.Claims.(*jwt.RegisteredClaims)
-
-	if !ok {
-		return Verified{}, fmt.Errorf("%s: %w", op, ErrParseClaims)
-	}
-
-	if claims.Subject == "" || claims.ID == "" {
-		return Verified{}, fmt.Errorf("%s: %w", op, ErrInvalidToken)
-	}
-
-	return Verified{Uid: claims.Subject, Sid: claims.ID}, nil
+	return Verified[T]{
+		Payload:   wrapper.Data,
+		Claims:    Claims{ID: wrapper.ID, Subject: wrapper.Subject},
+		ExpiresAt: wrapper.ExpiresAt.Time,
+		IssuedAt:  wrapper.IssuedAt.Time,
+	}, nil
 }

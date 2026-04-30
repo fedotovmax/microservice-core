@@ -2,14 +2,14 @@ package jwt
 
 import "time"
 
-type CreateParams struct {
-	Uid            string
-	Sid            string
-	TokenExpiresAt time.Time
-	Now            time.Time
+type Verified[T any] struct {
+	Payload   T
+	Claims    Claims
+	ExpiresAt time.Time
+	IssuedAt  time.Time
 }
 
-type Verified struct {
-	Uid string
-	Sid string
+type Claims struct {
+	Subject string
+	ID      string
 }

@@ -3,8 +3,6 @@ package kafka
 import (
 	"fmt"
 	"time"
-
-	"github.com/kelseyhightower/envconfig"
 )
 
 // - ReadTimeout → сколько ждём ответ (важно для commit)
@@ -12,25 +10,25 @@ import (
 // - Session.Timeout → когда тебя выкинут из группы
 // - Heartbeat.Interval → как часто ты “пингуешь” Kafka
 type GroupConfig struct {
-	Brokers []string `envconfig:"KAFKA_CONSUMER_GROUP_BROKERS" required:"true"`
-	Topics  []string `envconfig:"KAFKA_CONSUMER_GROUP_TOPICS" required:"true"`
-	GroupID string   `envconfig:"KAFKA_CONSUMER_GROUP_GROUP_ID" required:"true"`
+	Brokers []string
+	Topics  []string
+	GroupID string
 
-	BackoffMaxInterval time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_BACKOFF_MAX_INTERVAL" required:"true" default:"25s"`
-	BackoffMinInterval time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_BACKOFF_MIN_INTERVAL" required:"true" default:"1s"`
-	CommitInterval     time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_COMMIT_INTERVAL" required:"true" default:"10s"`
-	MaxProcessingTime  time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_MAX_PROCESSING_TIME" required:"true" default:"10s"`
+	BackoffMaxInterval time.Duration
+	BackoffMinInterval time.Duration
+	CommitInterval     time.Duration
+	MaxProcessingTime  time.Duration
 
-	DialTimeout    time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_DIAL_TIMEOUT" default:"5s"`
-	ReadTimeout    time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_READ_TIMEOUT" default:"10s"`
-	SessionTimeout time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_SESSION_TIMEOUT" default:"30s"`
+	DialTimeout    time.Duration
+	ReadTimeout    time.Duration
+	SessionTimeout time.Duration
 
 	// HeartbeatInterval only for sarama, do not provide if use segmentio
-	HeartbeatInterval time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_HEARTBEAT_INTERVAL" default:"3s"`
-	RebalanceTimeout  time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_REBALANCE_TIMEOUT" default:"60s"`
+	HeartbeatInterval time.Duration
+	RebalanceTimeout  time.Duration
 
 	// MaxWaitTime only for sarama, do not provide if use segmentio
-	MaxWaitTime time.Duration `envconfig:"KAFKA_CONSUMER_GROUP_MAX_WAIT_TIME" default:"500ms"`
+	MaxWaitTime time.Duration
 }
 
 func (c GroupConfig) Validate() error {
@@ -107,23 +105,4 @@ func (c GroupConfig) Validate() error {
 	}
 
 	return nil
-}
-
-func NewGroupConfig() (GroupConfig, error) {
-	var config GroupConfig
-
-	if err := envconfig.Process("", &config); err != nil {
-		return GroupConfig{}, fmt.Errorf("error when parse kafka consumer group env variables: %w", err)
-	}
-
-	return config, nil
-}
-func NewGroupConfigMust() GroupConfig {
-	config, err := NewGroupConfig()
-
-	if err != nil {
-		panic(err)
-	}
-
-	return config
 }
