@@ -11,7 +11,7 @@ type Router interface {
 	RegisterRoute(route Route)
 	RegisterRoutes(routes ...Route)
 	Use(mw ...middleware.Middleware)
-	RouteGroup(pattern string, fn func(Router))
+	Group(pattern string, fn func(Router))
 	ServeHTTP(w http.ResponseWriter, req *http.Request)
 	Mount(path string, h http.Handler) // Для внешних хендлеров типа Swagger/Prometheus
 }
@@ -29,21 +29,17 @@ func (r *router) RegisterRoute(route Route) {
 
 	finalHandler := middleware.Chain(route.Handler, route.Middlewares...)
 
-	r.mux.Method(route.Method.String(), route.Path, finalHandler)
+	r.mux.Method(route.Method, route.Path, finalHandler)
 
 }
 
 func (r *router) RegisterRoutes(routes ...Route) {
-
 	for _, route := range routes {
-		finalHandler := middleware.Chain(route.Handler, route.Middlewares...)
-
-		r.mux.Method(route.Method.String(), route.Path, finalHandler)
+		r.RegisterRoute(route)
 	}
-
 }
 
-func (r *router) RouteGroup(path string, fn func(Router)) {
+func (r *router) Group(path string, fn func(Router)) {
 	r.mux.Route(path, func(sub chi.Router) { fn(&router{mux: sub}) })
 }
 
