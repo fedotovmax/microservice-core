@@ -18,6 +18,12 @@ const (
 	stateStopping
 )
 
+type Server interface {
+	Start() error
+	StartAsync(onError ...func(error))
+	Stop(ctx context.Context) error
+}
+
 type httpServer struct {
 	mu     sync.Mutex
 	state  state
@@ -27,7 +33,7 @@ type httpServer struct {
 	mux    http.Handler
 }
 
-func New(c Config, log logger.Logger, mux http.Handler) (*httpServer, error) {
+func New(c Config, log logger.Logger, mux http.Handler) (Server, error) {
 
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -62,30 +68,34 @@ func (s *httpServer) Start() error {
 
 	s.mu.Lock()
 
-	if s.state != stateStopped {
-		msg := "already running"
-		if s.state == stateStopping {
-			msg = "currently stopping"
-		}
+	switch s.state {
+	case stateRunning:
 		s.mu.Unlock()
-		return fmt.Errorf("%s: server is %s", op, msg)
+		return fmt.Errorf("%s: server is already running", op)
+	case stateStopping:
+		s.mu.Unlock()
+		return fmt.Errorf("%s: server is currently stopping, wait before restarting", op)
 	}
 
 	srv := &http.Server{
-		Addr:    s.config.Addr,
-		Handler: s.mux,
+		Addr:              s.config.Addr,
+		Handler:           s.mux,
+		ReadTimeout:       s.config.ReadTimeout,
+		ReadHeaderTimeout: s.config.ReadHeaderTimeout,
+		WriteTimeout:      s.config.WriteTimeout,
+		IdleTimeout:       s.config.IdleTimeout,
 	}
 	s.srv = srv
 	s.state = stateRunning
 	s.mu.Unlock()
 
-	s.log.Warn("starting HTTP server", logger.String("addr", s.config.Addr))
+	s.log.Info("starting HTTP server", logger.String("addr", s.config.Addr))
 
 	err := srv.ListenAndServe()
 
-	// После завершения ListenAndServe (ошибка или Shutdown) — очищаем состояние
+	// ListenAndServe завершился — сбрасываем состояние.
+	// Проверяем s.srv == srv, чтобы не затереть состояние от нового запуска.
 	s.mu.Lock()
-	// Очищаем только если это тот же самый экземпляр сервера, который мы запускали
 	if s.srv == srv {
 		s.srv = nil
 		s.state = stateStopped
@@ -107,28 +117,34 @@ func (s *httpServer) Stop(ctx context.Context) error {
 
 	s.mu.Lock()
 
-	if s.state != stateRunning {
+	switch s.state {
+	case stateStopped:
 		s.mu.Unlock()
-		return fmt.Errorf("%s: cannot stop, server not running", op)
+		return fmt.Errorf("%s: server is not running", op)
+	case stateStopping:
+		s.mu.Unlock()
+		log.Info("stop already in progress, skipping duplicate call")
+		return nil
 	}
 
 	// Переходим в промежуточное состояние
 	s.state = stateStopping
 	srv := s.srv
-	s.mu.Unlock() // Отпускаем лок, чтобы не блокировать Start на 30 секунд
+	s.mu.Unlock() // Отпускаем лок до Shutdown, чтобы не блокировать Start.
 
-	log.Warn("stopping HTTP server...")
+	log.Info("stopping HTTP server...")
 
-	// Пытаемся закрыть красиво
 	if err := srv.Shutdown(ctx); err != nil {
-
-		// Если не вышло (таймаут или ошибка), закрываем принудительно
+		// Graceful shutdown не удался — закрываем принудительно.
 		forceErr := srv.Close()
 
-		// Финальный сброс состояния даже при ошибке
+		// Состояние сбросит Start, когда ListenAndServe вернёт управление.
+		// Но если Start по какой-то причине не отреагировал — подстрахуемся.
 		s.mu.Lock()
-		s.state = stateStopped
-		s.srv = nil
+		if s.srv == srv {
+			s.srv = nil
+			s.state = stateStopped
+		}
 		s.mu.Unlock()
 
 		if forceErr != nil {
@@ -143,10 +159,12 @@ func (s *httpServer) Stop(ctx context.Context) error {
 
 	// Успешное завершение
 	s.mu.Lock()
-	s.state = stateStopped
-	s.srv = nil
+	if s.srv == srv {
+		s.srv = nil
+		s.state = stateStopped
+	}
 	s.mu.Unlock()
 
-	log.Warn("HTTP server closed gracefully")
+	log.Info("HTTP server closed gracefully")
 	return nil
 }

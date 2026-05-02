@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -10,6 +9,12 @@ import (
 	"github.com/fedotovmax/microservice-core/logger"
 	"google.golang.org/grpc"
 )
+
+type Server interface {
+	Start() error
+	StartAsync(onError ...func(error))
+	Stop(ctx context.Context) error
+}
 
 type state int
 
@@ -33,7 +38,7 @@ type gRPCServer struct {
 }
 
 // Теперь New принимает слайс функций регистрации
-func New(c Config, log logger.Logger, registers []RegisterFunc, opts ...grpc.ServerOption) (*gRPCServer, error) {
+func New(c Config, log logger.Logger, registers []RegisterFunc, opts ...grpc.ServerOption) (Server, error) {
 
 	if err := c.Validate(); err != nil {
 		return nil, err
@@ -68,21 +73,27 @@ func (s *gRPCServer) Start() error {
 
 	const op = "core.transport.grpc.server.gRPCServer.Start"
 
-	s.mu.Lock()
+	l, err := net.Listen("tcp", s.config.Addr)
 
-	if s.state != stateStopped {
-		msg := "already running"
-		if s.state == stateStopping {
-			msg = "currently stopping"
-		}
-		s.mu.Unlock()
-		return fmt.Errorf("%s: server is %s", op, msg)
+	if err != nil {
+		return fmt.Errorf("%s: tcp listener error: %w", op, err)
 	}
 
-	// Инициализируем сервер именно в момент старта
-	// Это позволяет "перезапускать" сервер, если он был остановлен
+	s.mu.Lock()
+
+	switch s.state {
+	case stateRunning:
+		s.mu.Unlock()
+		_ = l.Close() // не забываем закрыть listener
+		return fmt.Errorf("%s: server is already running", op)
+	case stateStopping:
+		s.mu.Unlock()
+		_ = l.Close() // не забываем закрыть listener
+		return fmt.Errorf("%s: server is currently stopping, wait before restarting", op)
+	}
 
 	srv := grpc.NewServer(s.opts...)
+
 	for _, reg := range s.registers {
 		reg(srv)
 	}
@@ -91,19 +102,8 @@ func (s *gRPCServer) Start() error {
 	s.state = stateRunning
 	s.mu.Unlock()
 
-	// Создаем listener вне мьютекса
-	l, err := net.Listen("tcp", s.config.Addr)
-	if err != nil {
-		s.mu.Lock()
-		s.state = stateStopped
-		s.gRPC = nil
-		s.mu.Unlock()
-		return fmt.Errorf("%s: tcp listener error: %w", op, err)
-	}
+	s.log.Info("starting gRPC server", logger.String("addr", s.config.Addr))
 
-	s.log.Warn("starting gRPC server", logger.String("addr", s.config.Addr))
-
-	// Serve блокирует горутину
 	err = srv.Serve(l)
 
 	s.mu.Lock()
@@ -113,7 +113,7 @@ func (s *gRPCServer) Start() error {
 	}
 	s.mu.Unlock()
 
-	if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+	if err != nil {
 		return fmt.Errorf("%s: gRPC runtime error: %w", op, err)
 	}
 
@@ -122,19 +122,28 @@ func (s *gRPCServer) Start() error {
 }
 
 func (s *gRPCServer) Stop(ctx context.Context) error {
-	const op = "core.transport.grpc.server.gRPCServer.Stop"
+	const op = "gRPCServer.Stop"
+
+	log := s.log.With(logger.String("op", op))
 
 	s.mu.Lock()
-	if s.state != stateRunning {
+
+	switch s.state {
+	case stateStopped:
 		s.mu.Unlock()
-		return fmt.Errorf("%s: cannot stop, server not running", op)
+		return fmt.Errorf("%s: server is not running", op)
+	case stateStopping:
+		s.mu.Unlock()
+		// Остановка уже идёт — повторный вызов игнорируем.
+		log.Info("stop already in progress, skipping duplicate call")
+		return nil
 	}
 
 	s.state = stateStopping
 	srv := s.gRPC
 	s.mu.Unlock()
 
-	s.log.Warn("stopping gRPC server gracefully...")
+	log.Info("stopping gRPC server gracefully...")
 
 	done := make(chan struct{})
 	go func() {
@@ -145,16 +154,20 @@ func (s *gRPCServer) Stop(ctx context.Context) error {
 	var stopErr error
 	select {
 	case <-done:
-		s.log.Warn("gRPC server closed gracefully")
+		log.Info("gRPC server stopped gracefully")
 	case <-ctx.Done():
-		// Если контекст истек, рубим соединения жестко
 		srv.Stop()
-		stopErr = fmt.Errorf("%s: stop context expired, server closed forcibly: %w", op, ctx.Err())
+		stopErr = fmt.Errorf("%s: context expired, server force stopped: %w", op, ctx.Err())
+		log.Warn("gRPC server force stopped", logger.Err(ctx.Err()))
 	}
 
+	// Состояние сбросит Start после возврата из Serve,
+	// но подстрахуемся на случай если Stop вызван до завершения горутины Start.
 	s.mu.Lock()
-	s.state = stateStopped
-	s.gRPC = nil
+	if s.gRPC == srv {
+		s.gRPC = nil
+		s.state = stateStopped
+	}
 	s.mu.Unlock()
 
 	return stopErr

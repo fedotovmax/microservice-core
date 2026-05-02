@@ -2,10 +2,15 @@ package server
 
 import (
 	"fmt"
+	"time"
 )
 
 type Config struct {
-	Addr string
+	Addr              string
+	ReadTimeout       time.Duration
+	ReadHeaderTimeout time.Duration
+	WriteTimeout      time.Duration
+	IdleTimeout       time.Duration
 }
 
 func (c Config) Validate() error {
