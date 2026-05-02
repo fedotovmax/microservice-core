@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"runtime/debug"
 	"sync"
 
 	"github.com/fedotovmax/microservice-core/logger"
@@ -12,7 +14,8 @@ import (
 
 type Server interface {
 	Start() error
-	StartAsync(onError ...func(error))
+	StartAsync(ctx context.Context, onError func(context.Context, error))
+
 	Stop(ctx context.Context) error
 }
 
@@ -25,7 +28,7 @@ const (
 )
 
 // RegisterFunc — это «клей» между вашим gRPC сервером и сгенерированным кодом
-type RegisterFunc func(*grpc.Server)
+type RegisterFunc func(grpc.ServiceRegistrar)
 
 type gRPCServer struct {
 	config    Config
@@ -53,22 +56,44 @@ func New(c Config, log logger.Logger, registers []RegisterFunc, opts ...grpc.Ser
 
 }
 
-func (s *gRPCServer) StartAsync(onError ...func(error)) {
-
+// Сигнатура стала строгой: строго ОДИН коллбэк.
+func (s *gRPCServer) StartAsync(ctx context.Context, onError func(context.Context, error)) {
 	const op = "core.transport.grpc.server.gRPCServer.StartAsync"
+	log := s.log.With(logger.String("op", op))
 
 	go func() {
-		if err := s.Start(); err != nil {
-			s.log.With(logger.String("op", op)).Error("cannot start gRPC server", logger.Err(err))
-			if len(onError) > 0 {
-				for _, fn := range onError {
-					fn(err)
-				}
-			}
+
+		err := s.Start()
+		if err == nil {
+			return
+		}
+
+		log.Error("cannot start gRPC server", logger.Err(err))
+
+		if onError != nil {
+			func() {
+				// Даем этому единственному коллбэку время из конфига
+				hCtx, cancel := context.WithTimeout(ctx, s.config.OnStartErrorHandlersTimeout)
+				defer cancel()
+
+				// Защищаем от паники внутри коллбэка
+				defer func() {
+					if p := recover(); p != nil {
+						log.Error(
+							"intercept panic in onError callback",
+							logger.Any("panic", p),
+							logger.String("stack", string(debug.Stack())),
+						)
+
+					}
+				}()
+
+				// Вызываем синхронно.
+				onError(hCtx, err)
+			}()
 		}
 	}()
 }
-
 func (s *gRPCServer) Start() error {
 
 	const op = "core.transport.grpc.server.gRPCServer.Start"
@@ -94,8 +119,11 @@ func (s *gRPCServer) Start() error {
 
 	srv := grpc.NewServer(s.opts...)
 
-	for _, reg := range s.registers {
-		reg(srv)
+	// Регистрация сервисов изолирована — паника не уронит мьютекс.
+	if err := s.register(srv); err != nil {
+		s.mu.Unlock()
+		_ = l.Close()
+		return fmt.Errorf("%s: %w", op, err)
 	}
 
 	s.gRPC = srv
@@ -104,7 +132,7 @@ func (s *gRPCServer) Start() error {
 
 	s.log.Info("starting gRPC server", logger.String("addr", s.config.Addr))
 
-	err = srv.Serve(l)
+	err = s.serve(srv, l)
 
 	s.mu.Lock()
 	if s.gRPC == srv {
@@ -113,7 +141,7 @@ func (s *gRPCServer) Start() error {
 	}
 	s.mu.Unlock()
 
-	if err != nil {
+	if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 		return fmt.Errorf("%s: gRPC runtime error: %w", op, err)
 	}
 
@@ -171,4 +199,42 @@ func (s *gRPCServer) Stop(ctx context.Context) error {
 	s.mu.Unlock()
 
 	return stopErr
+}
+
+// register вызывает все RegisterFunc в защищённом контексте.
+// Паника во время регистрации конвертируется в ошибку,
+// чтобы не уронить мьютекс и не оставить сервер в неконсистентном состоянии.
+func (s *gRPCServer) register(srv *grpc.Server) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Error("panic during gRPC service registration",
+				logger.Any("recover", r),
+				logger.String("stack", string(debug.Stack())),
+			)
+			err = fmt.Errorf("registration panic: %v", r)
+		}
+	}()
+
+	for _, reg := range s.registers {
+		reg(srv)
+	}
+	return nil
+}
+
+// serve изолирует панику от srv.Serve и восстанавливается из неё.
+// Паники внутри gRPC-обработчиков всплывают сюда, если не перехвачены
+// UnaryInterceptor/StreamInterceptor на уровне хендлеров.
+func (s *gRPCServer) serve(srv *grpc.Server, l net.Listener) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Error("panic in gRPC server",
+				logger.Any("recover", r),
+				logger.String("stack", string(debug.Stack())),
+			)
+
+			err = fmt.Errorf("panic recovered: %v", r)
+		}
+	}()
+
+	return srv.Serve(l)
 }

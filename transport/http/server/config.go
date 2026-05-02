@@ -6,11 +6,12 @@ import (
 )
 
 type Config struct {
-	Addr              string
-	ReadTimeout       time.Duration
-	ReadHeaderTimeout time.Duration
-	WriteTimeout      time.Duration
-	IdleTimeout       time.Duration
+	Addr                       string
+	ReadTimeout                time.Duration
+	ReadHeaderTimeout          time.Duration
+	WriteTimeout               time.Duration
+	IdleTimeout                time.Duration
+	OnStartErrorHandlerTimeout time.Duration
 }
 
 func (c Config) Validate() error {

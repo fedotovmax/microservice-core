@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"sync"
 
 	"github.com/fedotovmax/microservice-core/logger"
@@ -20,7 +21,7 @@ const (
 
 type Server interface {
 	Start() error
-	StartAsync(onError ...func(error))
+	StartAsync(ctx context.Context, onError func(context.Context, error))
 	Stop(ctx context.Context) error
 }
 
@@ -34,7 +35,6 @@ type httpServer struct {
 }
 
 func New(c Config, log logger.Logger, mux http.Handler) (Server, error) {
-
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
@@ -46,25 +46,41 @@ func New(c Config, log logger.Logger, mux http.Handler) (Server, error) {
 	}, nil
 }
 
-func (s *httpServer) StartAsync(onError ...func(error)) {
-
-	const op = "core.transport.http.server.httpServer.StartAsync"
+// StartAsync — строгая сигнатура: один коллбэк с контекстом, как в gRPC-сервере.
+func (s *httpServer) StartAsync(ctx context.Context, onError func(context.Context, error)) {
+	const op = "httpServer.StartAsync"
+	log := s.log.With(logger.String("op", op))
 
 	go func() {
-		if err := s.Start(); err != nil {
-			s.log.With(logger.String("op", op)).Error("cannot start HTTP server", logger.Err(err))
-			if len(onError) > 0 {
-				for _, fn := range onError {
-					fn(err)
-				}
-			}
+		err := s.Start()
+		if err == nil {
+			return
+		}
+
+		log.Error("cannot start HTTP server", logger.Err(err))
+
+		if onError != nil {
+			func() {
+				hCtx, cancel := context.WithTimeout(ctx, s.config.OnStartErrorHandlerTimeout)
+				defer cancel()
+
+				defer func() {
+					if p := recover(); p != nil {
+						log.Error("panic in onError callback",
+							logger.Any("panic", p),
+							logger.String("stack", string(debug.Stack())),
+						)
+					}
+				}()
+
+				onError(hCtx, err)
+			}()
 		}
 	}()
 }
 
 func (s *httpServer) Start() error {
-
-	const op = "core.transport.http.server.httpServer.Start"
+	const op = "httpServer.Start"
 
 	s.mu.Lock()
 
@@ -91,10 +107,8 @@ func (s *httpServer) Start() error {
 
 	s.log.Info("starting HTTP server", logger.String("addr", s.config.Addr))
 
-	err := srv.ListenAndServe()
+	err := s.serve(srv)
 
-	// ListenAndServe завершился — сбрасываем состояние.
-	// Проверяем s.srv == srv, чтобы не затереть состояние от нового запуска.
 	s.mu.Lock()
 	if s.srv == srv {
 		s.srv = nil
@@ -110,8 +124,7 @@ func (s *httpServer) Start() error {
 }
 
 func (s *httpServer) Stop(ctx context.Context) error {
-
-	const op = "core.transport.http.server.httpServer.Stop"
+	const op = "httpServer.Stop"
 
 	log := s.log.With(logger.String("op", op))
 
@@ -127,19 +140,15 @@ func (s *httpServer) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	// Переходим в промежуточное состояние
 	s.state = stateStopping
 	srv := s.srv
-	s.mu.Unlock() // Отпускаем лок до Shutdown, чтобы не блокировать Start.
+	s.mu.Unlock()
 
 	log.Info("stopping HTTP server...")
 
 	if err := srv.Shutdown(ctx); err != nil {
-		// Graceful shutdown не удался — закрываем принудительно.
 		forceErr := srv.Close()
 
-		// Состояние сбросит Start, когда ListenAndServe вернёт управление.
-		// Но если Start по какой-то причине не отреагировал — подстрахуемся.
 		s.mu.Lock()
 		if s.srv == srv {
 			s.srv = nil
@@ -148,16 +157,11 @@ func (s *httpServer) Stop(ctx context.Context) error {
 		s.mu.Unlock()
 
 		if forceErr != nil {
-			return fmt.Errorf("%s: failed to shutdown HTTP server: %w, also failed to force close: %v",
-				op, err, forceErr)
+			return fmt.Errorf("%s: failed to shutdown: %w, also failed to force close: %v", op, err, forceErr)
 		}
-
-		// Если принудительно закрыли успешно, всё равно сообщаем об ошибке Shutdown
-		return fmt.Errorf("%s: failed to shutdown HTTP server, but closed forcibly: %w",
-			op, err)
+		return fmt.Errorf("%s: failed to shutdown, but closed forcibly: %w", op, err)
 	}
 
-	// Успешное завершение
 	s.mu.Lock()
 	if s.srv == srv {
 		s.srv = nil
@@ -165,6 +169,22 @@ func (s *httpServer) Stop(ctx context.Context) error {
 	}
 	s.mu.Unlock()
 
-	log.Info("HTTP server closed gracefully")
+	log.Info("HTTP server stopped gracefully")
 	return nil
+}
+
+// serve изолирует панику от ListenAndServe — последний рубеж защиты.
+// Паники из конкретных хендлеров лучше перехватывать middleware-уровнем.
+func (s *httpServer) serve(srv *http.Server) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.log.Error("panic in HTTP server",
+				logger.Any("recover", r),
+				logger.String("stack", string(debug.Stack())),
+			)
+			err = fmt.Errorf("panic recovered: %v", r)
+		}
+	}()
+
+	return srv.ListenAndServe()
 }
