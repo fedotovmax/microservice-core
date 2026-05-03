@@ -5,6 +5,80 @@ import (
 	"time"
 )
 
+// Producer
+
+type ProducerOption func(*ProducerConfig)
+
+func WithChannelBufferSize(n int) ProducerOption {
+	return func(c *ProducerConfig) {
+		c.ChannelBufferSize = n
+	}
+}
+
+func WithSendMaxRetries(n int) ProducerOption {
+	return func(c *ProducerConfig) {
+		c.SendMaxRetries = n
+	}
+}
+
+func WithRetryBackoff(d time.Duration) ProducerOption {
+	return func(c *ProducerConfig) {
+		c.RetryBackoff = d
+	}
+}
+
+func WithBatchFrequency(d time.Duration) ProducerOption {
+	return func(c *ProducerConfig) {
+		c.BatchFrequency = d
+	}
+}
+
+func WithBatchBytes(n int) ProducerOption {
+	return func(c *ProducerConfig) {
+		c.BatchBytes = n
+	}
+}
+
+func WithBatchMessagesCount(n int) ProducerOption {
+	return func(c *ProducerConfig) {
+		c.BatchMessagesCount = n
+	}
+}
+
+func defaultProducerConfig() *ProducerConfig {
+	return &ProducerConfig{
+		ChannelBufferSize:  256,
+		SendMaxRetries:     3,
+		RetryBackoff:       100 * time.Millisecond,
+		BatchFrequency:     100 * time.Millisecond,
+		BatchBytes:         1048576, // 1MB
+		BatchMessagesCount: 100,
+	}
+}
+
+func NewProducerConfig(brokers []string, opts ...ProducerOption) (*ProducerConfig, error) {
+	cfg := defaultProducerConfig()
+	cfg.Brokers = brokers
+
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+func NewProducerConfigMust(brokers []string, opts ...ProducerOption) *ProducerConfig {
+	cfg, err := NewProducerConfig(brokers, opts...)
+	if err != nil {
+		panic(err)
+	}
+	return cfg
+}
+
 type ProducerConfig struct {
 	Brokers []string
 	// Увеличиваем буфер канала. Если он будет меньше BatchLimit из Outbox,

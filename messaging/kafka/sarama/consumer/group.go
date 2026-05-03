@@ -16,20 +16,14 @@ type group struct {
 	isStopped   chan struct{}
 	stopCtx     context.Context
 	stopCtxFunc func()
-	config      kafka.GroupConfig
+	config      *kafka.GroupConfig
 	stopOnce    sync.Once // Гарантирует, что закроем всё один раз
 
 }
 
-func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup, error) {
+func NewGroup(log logger.Logger, config *kafka.GroupConfig) (kafka.ConsumerGroup, error) {
 
 	const op = "core.messaging.kafka.sarama.consumer.NewGroup"
-
-	err := config.Validate()
-
-	if err != nil {
-		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
-	}
 
 	cfg := sarama.NewConfig()
 

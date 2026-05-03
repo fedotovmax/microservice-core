@@ -9,7 +9,7 @@ import (
 )
 
 type tokenManager[T any] struct {
-	config Config
+	config *Config
 }
 
 type claimsWrapper[T any] struct {
@@ -17,7 +17,7 @@ type claimsWrapper[T any] struct {
 	Data T `json:"dat"`
 }
 
-func New[T any](config Config) *tokenManager[T] {
+func New[T any](config *Config) *tokenManager[T] {
 	return &tokenManager[T]{config: config}
 }
 

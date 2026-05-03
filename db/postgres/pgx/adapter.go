@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/fedotovmax/microservice-core/db/postgresql"
+	"github.com/fedotovmax/microservice-core/db/postgres"
 	"github.com/fedotovmax/microservice-core/db/tx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -24,7 +24,7 @@ func (r pgxRow) Scan(dest ...any) error {
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return postgresql.ErrNoRows
+			return postgres.ErrNoRows
 		}
 		return err
 	}
@@ -52,7 +52,7 @@ func (t *trx) Rollback(ctx context.Context) error {
 	return nil
 }
 
-func (t *trx) Query(ctx context.Context, sql string, args ...any) (postgresql.Rows, error) {
+func (t *trx) Query(ctx context.Context, sql string, args ...any) (postgres.Rows, error) {
 	rows, err := t.Tx.Query(ctx, sql, args...)
 
 	if err != nil {
@@ -62,13 +62,13 @@ func (t *trx) Query(ctx context.Context, sql string, args ...any) (postgresql.Ro
 	return pgxRows{rows}, nil
 }
 
-func (t *trx) QueryRow(ctx context.Context, sql string, args ...any) postgresql.Row {
+func (t *trx) QueryRow(ctx context.Context, sql string, args ...any) postgres.Row {
 	row := t.Tx.QueryRow(ctx, sql, args...)
 
 	return pgxRow{row}
 }
 
-func (t *trx) Exec(ctx context.Context, sql string, args ...any) (postgresql.CommandTag, error) {
+func (t *trx) Exec(ctx context.Context, sql string, args ...any) (postgres.CommandTag, error) {
 
 	cmd, err := t.Tx.Exec(ctx, sql, args...)
 

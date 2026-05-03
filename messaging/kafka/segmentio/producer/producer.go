@@ -1,8 +1,6 @@
 package producer
 
 import (
-	"fmt"
-
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	skafka "github.com/segmentio/kafka-go"
@@ -20,12 +18,8 @@ type producer struct {
 	errCh     chan errMessage // В segmentio ошибка лежит внутри Message при использовании Completion
 }
 
-func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, error) {
+func New(log logger.Logger, config *kafka.ProducerConfig) (kafka.AsyncProducer, error) {
 	const op = "core.messaging.kafka.segmentio.producer.New"
-
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: validate config: %w", op, err)
-	}
 
 	// Каналы для связи Completion callback с методами Handle
 	successCh := make(chan skafka.Message, config.ChannelBufferSize)

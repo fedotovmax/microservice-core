@@ -13,14 +13,8 @@ type producer struct {
 	log logger.Logger
 }
 
-func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, error) {
+func New(log logger.Logger, config *kafka.ProducerConfig) (kafka.AsyncProducer, error) {
 	const op = "core.messaging.kafka.sarama.producer.New"
-
-	err := config.Validate()
-
-	if err != nil {
-		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
-	}
 
 	saramaConfig := sarama.NewConfig()
 

@@ -5,6 +5,110 @@ import (
 	"time"
 )
 
+// Consumer Group
+
+type GroupOption func(*GroupConfig)
+
+func WithBackoffMaxInterval(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.BackoffMaxInterval = d
+	}
+}
+
+func WithBackoffMinInterval(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.BackoffMinInterval = d
+	}
+}
+
+func WithCommitInterval(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.CommitInterval = d
+	}
+}
+
+func WithMaxProcessingTime(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.MaxProcessingTime = d
+	}
+}
+
+func WithDialTimeout(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.DialTimeout = d
+	}
+}
+
+func WithReadTimeout(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.ReadTimeout = d
+	}
+}
+
+func WithSessionTimeout(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.SessionTimeout = d
+	}
+}
+
+func WithHeartbeatInterval(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.HeartbeatInterval = d
+	}
+}
+
+func WithRebalanceTimeout(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.RebalanceTimeout = d
+	}
+}
+
+func WithMaxWaitTime(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.MaxWaitTime = d
+	}
+}
+
+func defaultGroupConfig() *GroupConfig {
+	return &GroupConfig{
+		BackoffMaxInterval: 25 * time.Second,
+		BackoffMinInterval: 1 * time.Second,
+		CommitInterval:     10 * time.Second,
+		MaxProcessingTime:  10 * time.Second,
+		DialTimeout:        5 * time.Second,
+		ReadTimeout:        10 * time.Second,
+		SessionTimeout:     30 * time.Second,
+		HeartbeatInterval:  3 * time.Second,
+		RebalanceTimeout:   60 * time.Second,
+		MaxWaitTime:        500 * time.Millisecond,
+	}
+}
+
+func NewGroupConfig(brokers []string, topics []string, groupID string, opts ...GroupOption) (*GroupConfig, error) {
+	cfg := defaultGroupConfig()
+	cfg.Brokers = brokers
+	cfg.Topics = topics
+	cfg.GroupID = groupID
+
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+func NewGroupConfigMust(brokers []string, topics []string, groupID string, opts ...GroupOption) *GroupConfig {
+	cfg, err := NewGroupConfig(brokers, topics, groupID, opts...)
+	if err != nil {
+		panic(err)
+	}
+	return cfg
+}
+
 // - ReadTimeout → сколько ждём ответ (важно для commit)
 // - WriteTimeout → сколько отправляем запрос
 // - Session.Timeout → когда тебя выкинут из группы

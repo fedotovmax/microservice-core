@@ -25,13 +25,9 @@ type Sender struct {
 	d idialer
 }
 
-func New(config Config) (*Sender, error) {
+func New(config *Config) (*Sender, error) {
 
 	const op = "core.transport.smtp.mail.New"
-
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
-	}
 
 	gomailDialer := gomail.NewDialer(
 		config.Host,

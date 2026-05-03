@@ -14,6 +14,33 @@ type Config struct {
 	DisplayName string
 }
 
+func NewConfig(host string, port int, secret, sender, displayName string) (*Config, error) {
+	cfg := &Config{
+		Host:        host,
+		Port:        port,
+		Secret:      secret,
+		Sender:      sender,
+		DisplayName: displayName,
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+func NewConfigMust(host string, port int, secret, sender, displayName string) *Config {
+
+	cfg, err := NewConfig(host, port, secret, sender, displayName)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return cfg
+}
+
 func (c Config) Validate() error {
 
 	const op = "core.transport.smtp.mail.Config.Validate"

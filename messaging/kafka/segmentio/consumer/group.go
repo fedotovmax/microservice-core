@@ -2,7 +2,6 @@ package consumer
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/fedotovmax/microservice-core/logger"
@@ -17,16 +16,12 @@ type group struct {
 	errCh       chan error
 	stopCtx     context.Context
 	stopCtxFunc func()
-	config      kafka.GroupConfig
+	config      *kafka.GroupConfig
 	stopOnce    sync.Once
 }
 
-func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup, error) {
+func NewGroup(log logger.Logger, config *kafka.GroupConfig) (kafka.ConsumerGroup, error) {
 	const op = "core.messaging.kafka.segmentio.consumer.NewGroup"
-
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
 
 	r := skafka.NewReader(skafka.ReaderConfig{
 		Brokers:     config.Brokers,

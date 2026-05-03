@@ -11,10 +11,10 @@ import (
 
 func connectWithRetries(
 	ctx context.Context,
-	config BaseConfig,
+	config *BaseConfig,
 	dsn string,
 ) (*pgxpool.Pool, error) {
-	const op = "core.db.postgresql.pgx.connectWithRetries"
+	const op = "core.db.postgres.pgx.connectWithRetries"
 
 	parsedConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {

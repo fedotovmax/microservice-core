@@ -17,13 +17,9 @@ type zapLogger struct {
 	file *os.File
 }
 
-func New(config Config) (logger.Logger, error) {
+func New(config *Config) (logger.Logger, error) {
 
 	const op = "core.logger.zap.New"
-
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
-	}
 
 	zapLevel := zap.NewAtomicLevel()
 
@@ -31,7 +27,7 @@ func New(config Config) (logger.Logger, error) {
 		return nil, fmt.Errorf("%s: %w", op, InvalidLogLevelError(config.Level))
 	}
 
-	if config.LogFolder.Enable {
+	if config.LogFolder.Enabled {
 		l, err := initWithLogFolder(config, zapLevel)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
@@ -49,13 +45,13 @@ func New(config Config) (logger.Logger, error) {
 func (l *zapLogger) SetLevel(level string) error {
 	const op = "core.logger.zap.Logger.SetLevel"
 
-	loggerLevel := Level(level)
+	loggerLevel, err := NewLevel(level)
 
-	if err := loggerLevel.Validate(); err != nil {
+	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 
-	if err := l.atom.UnmarshalText([]byte(level)); err != nil {
+	if err := l.atom.UnmarshalText([]byte(loggerLevel)); err != nil {
 		return fmt.Errorf("%s: invalid zap level: %w", op, err)
 	}
 	return nil
@@ -77,7 +73,7 @@ func (l *zapLogger) Stop() {
 	}
 }
 
-func initWithLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, error) {
+func initWithLogFolder(config *Config, zapLevel zap.AtomicLevel) (logger.Logger, error) {
 
 	const op = "core.logger.zap.initWithLogFolder"
 
@@ -124,7 +120,7 @@ func initWithLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, 
 	}, nil
 }
 
-func initWithoutLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, error) {
+func initWithoutLogFolder(config *Config, zapLevel zap.AtomicLevel) (logger.Logger, error) {
 
 	const op = "core.logger.zap.initWithoutLogFolder"
 

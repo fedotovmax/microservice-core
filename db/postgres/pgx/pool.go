@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/fedotovmax/microservice-core/db/postgresql"
+	"github.com/fedotovmax/microservice-core/db/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -13,13 +13,9 @@ type pool struct {
 	*pgxpool.Pool
 }
 
-func New(ctx context.Context, config Config) (postgresql.Pool, error) {
+func New(ctx context.Context, config *Config) (postgres.Pool, error) {
 
-	const op = "core.db.postgresql.pgx.New"
-
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
-	}
+	const op = "core.db.postgres.pgx.New"
 
 	pgpool, err := connectWithRetries(ctx, config.BaseConfig, config.Dsn)
 	if err != nil {
@@ -34,7 +30,7 @@ func New(ctx context.Context, config Config) (postgresql.Pool, error) {
 
 }
 
-func (p *pool) Query(ctx context.Context, sql string, args ...any) (postgresql.Rows, error) {
+func (p *pool) Query(ctx context.Context, sql string, args ...any) (postgres.Rows, error) {
 	rows, err := p.Pool.Query(ctx, sql, args...)
 
 	if err != nil {
@@ -44,13 +40,13 @@ func (p *pool) Query(ctx context.Context, sql string, args ...any) (postgresql.R
 	return pgxRows{rows}, nil
 }
 
-func (p *pool) QueryRow(ctx context.Context, sql string, args ...any) postgresql.Row {
+func (p *pool) QueryRow(ctx context.Context, sql string, args ...any) postgres.Row {
 	row := p.Pool.QueryRow(ctx, sql, args...)
 
 	return pgxRow{row}
 }
 
-func (p *pool) Exec(ctx context.Context, sql string, args ...any) (postgresql.CommandTag, error) {
+func (p *pool) Exec(ctx context.Context, sql string, args ...any) (postgres.CommandTag, error) {
 
 	cmd, err := p.Pool.Exec(ctx, sql, args...)
 
@@ -61,7 +57,7 @@ func (p *pool) Exec(ctx context.Context, sql string, args ...any) (postgresql.Co
 	return pgxCmdTag{cmd}, nil
 }
 
-func (p *pool) Begin(ctx context.Context) (postgresql.Tx, error) {
+func (p *pool) Begin(ctx context.Context) (postgres.Tx, error) {
 
 	tr, err := p.Pool.Begin(ctx)
 
@@ -73,7 +69,7 @@ func (p *pool) Begin(ctx context.Context) (postgresql.Tx, error) {
 
 }
 
-func (p *pool) BeginTx(ctx context.Context, txOptions postgresql.TxOptions) (postgresql.Tx, error) {
+func (p *pool) BeginTx(ctx context.Context, txOptions postgres.TxOptions) (postgres.Tx, error) {
 
 	var pgxTxOptions pgx.TxOptions
 
@@ -92,7 +88,7 @@ func (p *pool) BeginTx(ctx context.Context, txOptions postgresql.TxOptions) (pos
 	return &trx{tr}, nil
 }
 
-func (p *pool) Stat() postgresql.Stat {
+func (p *pool) Stat() postgres.Stat {
 
 	s := p.Pool.Stat()
 	return &Stat{Stat: s}
@@ -106,14 +102,14 @@ func (p *pool) Ping(ctx context.Context) error {
 
 func (p *pool) Stop(ctx context.Context) error {
 
-	const op = "core.db.postgresql.pgx.Pool.Stop"
+	const op = "core.db.postgres.pgx.Pool.Stop"
 
 	if p == nil {
-		return fmt.Errorf("%s: %w", op, postgresql.ErrWantToCallMethodsAfterInitPool)
+		return fmt.Errorf("%s: %w", op, postgres.ErrWantToCallMethodsAfterInitPool)
 	}
 
 	if p.Pool == nil {
-		return fmt.Errorf("%s: %w", op, postgresql.ErrWantToCallMethodsAfterInitPool)
+		return fmt.Errorf("%s: %w", op, postgres.ErrWantToCallMethodsAfterInitPool)
 	}
 
 	done := make(chan struct{})

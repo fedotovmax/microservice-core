@@ -4,26 +4,30 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"time"
 
+	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/redis/go-redis/v9"
 )
 
-type client struct {
-	rc  *redis.Client
-	log *slog.Logger
+type ClientOption func(*client)
+
+func WithLogger(log logger.Logger) ClientOption {
+	return func(c *client) {
+		c.log = log
+	}
 }
 
-func New(ctx context.Context, config Config, log *slog.Logger) (*client, error) {
+type client struct {
+	rc  *redis.Client
+	log logger.Logger
+}
+
+func New(ctx context.Context, config *Config, opts ...ClientOption) (*client, error) {
 
 	const op = "core.cache.redis.New"
 
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("%s: error when validate config: %w", op, err)
-	}
-
-	redisClient := redis.NewClient(&redis.Options{
+	rc := redis.NewClient(&redis.Options{
 		Addr:            config.Addr,
 		Password:        config.Password,
 		DB:              config.DB,
@@ -36,16 +40,21 @@ func New(ctx context.Context, config Config, log *slog.Logger) (*client, error) 
 		ConnMaxIdleTime: config.MaxIdleConnLifetime,
 	})
 
-	err := redisClient.Ping(ctx).Err()
+	err := rc.Ping(ctx).Err()
 
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	return &client{
-		rc:  redisClient,
-		log: log,
-	}, nil
+	redisClient := &client{
+		rc: rc,
+	}
+
+	for _, opt := range opts {
+		opt(redisClient)
+	}
+
+	return redisClient, nil
 
 }
 

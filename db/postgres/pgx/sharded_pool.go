@@ -5,23 +5,22 @@ import (
 	"fmt"
 	"hash/fnv"
 
-	"github.com/fedotovmax/microservice-core/db/postgresql"
+	"github.com/fedotovmax/microservice-core/db/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ShardedPool struct {
-	pools []postgresql.Pool
+	pools []postgres.Pool
 }
 
-func NewSharded(ctx context.Context, config ShardedConfig) (postgresql.ShardedPool, error) {
+func NewSharded(ctx context.Context, config *ShardedConfig) (postgres.ShardedPool, error) {
 
 	//TODO: maybe add errgroup?
-	const op = "core.db.postgresql.pgx.NewSharded"
+	const op = "core.db.postgres.pgx.NewSharded"
 
 	pgxpools := make([]*pgxpool.Pool, 0, len(config.Shards))
 
 	for i, dsn := range config.Shards {
-
 		p, err := connectWithRetries(ctx, config.BaseConfig, dsn)
 		if err != nil {
 			for _, opened := range pgxpools {
@@ -33,7 +32,7 @@ func NewSharded(ctx context.Context, config ShardedConfig) (postgresql.ShardedPo
 		pgxpools = append(pgxpools, p)
 	}
 
-	pools := make([]postgresql.Pool, len(pgxpools))
+	pools := make([]postgres.Pool, len(pgxpools))
 
 	for i := range pgxpools {
 		pools[i] = &pool{Pool: pgxpools[i]}
@@ -56,11 +55,11 @@ func (sp *ShardedPool) PingAll(ctx context.Context) error {
 	return nil
 }
 
-func (sp *ShardedPool) GetPool(key string) postgresql.Pool {
+func (sp *ShardedPool) GetPool(key string) postgres.Pool {
 	return sp.pools[sp.GetIndex(key)]
 }
 
-func (sp *ShardedPool) GetPoolByIndex(index uint32) postgresql.Pool {
+func (sp *ShardedPool) GetPoolByIndex(index uint32) postgres.Pool {
 	return sp.pools[index]
 }
 
@@ -76,7 +75,7 @@ func (m *ShardedPool) GetIndex(key string) uint32 {
 
 func (sp *ShardedPool) Stop(ctx context.Context) error {
 
-	const op = "core.db.postgresql.pgx.ShardedPool.Stop"
+	const op = "core.db.postgres.pgx.ShardedPool.Stop"
 
 	// TODO: maybe add errgroup?
 	for i := range sp.pools {

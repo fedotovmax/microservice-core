@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+type ConfigOption func(*Config)
+
 type Config struct {
 	MaxRetryBackoff     time.Duration
 	MinRetryBackoff     time.Duration
@@ -16,6 +18,88 @@ type Config struct {
 	MaxRetries          int
 	PoolSize            int
 	MaxIdleConns        int
+}
+
+func WithMaxRetryBackoff(b time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.MaxRetryBackoff = b
+	}
+}
+
+func WithMinRetryBackoff(b time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.MinRetryBackoff = b
+	}
+}
+
+func WithMaxConnLifetime(d time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.MaxConnLifetime = d
+	}
+}
+
+func WithMaxIdleConnLifetime(d time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.MaxIdleConnLifetime = d
+	}
+}
+
+func WithMaxRetries(n int) ConfigOption {
+	return func(c *Config) {
+		c.MaxRetries = n
+	}
+}
+
+func WithPoolSize(n int) ConfigOption {
+	return func(c *Config) {
+		c.PoolSize = n
+	}
+}
+
+func WithMaxIdleConns(n int) ConfigOption {
+	return func(c *Config) {
+		c.MaxIdleConns = n
+	}
+}
+
+func defaultConfig() *Config {
+	return &Config{
+		MaxRetryBackoff:     100 * time.Second,
+		MinRetryBackoff:     1 * time.Second,
+		MaxConnLifetime:     60 * time.Minute,
+		MaxIdleConnLifetime: 10 * time.Minute,
+		MaxRetries:          5,
+		PoolSize:            20,
+		MaxIdleConns:        5,
+	}
+}
+
+func NewConfig(addr, password string, db int, opts ...ConfigOption) (*Config, error) {
+	cfg := defaultConfig()
+	cfg.Addr = addr
+	cfg.Password = password
+	cfg.DB = db
+
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+func NewConfigMust(addr, password string, db int, opts ...ConfigOption) *Config {
+
+	config, err := NewConfig(addr, password, db, opts...)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return config
 }
 
 func (c Config) Validate() error {

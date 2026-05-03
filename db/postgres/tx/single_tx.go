@@ -5,21 +5,21 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fedotovmax/microservice-core/db/postgresql"
+	"github.com/fedotovmax/microservice-core/db/postgres"
 	"github.com/fedotovmax/microservice-core/db/tx"
 	"github.com/fedotovmax/microservice-core/logger"
 )
 
 type manager struct {
 	log  logger.Logger
-	pool postgresql.Pool
+	pool postgres.Pool
 }
 
 type transaction struct {
-	postgresql.Tx
+	postgres.Tx
 }
 
-func New(conn postgresql.Pool, log logger.Logger) (postgresql.TxManager, error) {
+func New(conn postgres.Pool, log logger.Logger) (postgres.TxManager, error) {
 
 	if conn == nil {
 		return nil, tx.ErrConnRequiredForTx
@@ -30,9 +30,9 @@ func New(conn postgresql.Pool, log logger.Logger) (postgresql.TxManager, error) 
 	}, nil
 }
 
-func (m *manager) WrapWithOptions(ctx context.Context, fn func(context.Context) error, opt postgresql.TxOptions) error {
+func (m *manager) WrapWithOptions(ctx context.Context, fn func(context.Context) error, opt postgres.TxOptions) error {
 
-	const op = "core.db.postgresql.tx.Manager.WrapWithOptions"
+	const op = "core.db.postgres.tx.Manager.WrapWithOptions"
 
 	m.mustCheckInit()
 
@@ -46,7 +46,7 @@ func (m *manager) WrapWithOptions(ctx context.Context, fn func(context.Context) 
 
 func (m *manager) Wrap(ctx context.Context, fn func(context.Context) error) error {
 
-	const op = "core.db.postgresql.tx.Manager.Wrap"
+	const op = "core.db.postgres.tx.Manager.Wrap"
 
 	m.mustCheckInit()
 
@@ -59,7 +59,7 @@ func (m *manager) Wrap(ctx context.Context, fn func(context.Context) error) erro
 
 }
 
-func (m *manager) ExtractTx(ctx context.Context) postgresql.Executor {
+func (m *manager) ExtractTx(ctx context.Context) postgres.Executor {
 
 	m.mustCheckInit()
 
@@ -73,7 +73,7 @@ func (m *manager) ExtractTx(ctx context.Context) postgresql.Executor {
 
 func (m *manager) mustCheckInit() {
 
-	const op = "core.db.postgresql.tx.Manger.mustCheckInit"
+	const op = "core.db.postgres.tx.Manger.mustCheckInit"
 
 	if m == nil {
 		panic(fmt.Errorf("%s: %w", op, tx.ErrManagerIsNotInit))
@@ -85,9 +85,9 @@ func (m *manager) mustCheckInit() {
 
 }
 
-func (m *manager) wrap(ctx context.Context, trx postgresql.Tx, fn func(context.Context) error) error {
+func (m *manager) wrap(ctx context.Context, trx postgres.Tx, fn func(context.Context) error) error {
 
-	const op = "core.db.postgresql.tx.Manager.wrap"
+	const op = "core.db.postgres.tx.Manager.wrap"
 
 	l := m.log.With(logger.String("op", op))
 
