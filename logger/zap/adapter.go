@@ -20,6 +20,7 @@ func (l *zapLogger) With(f ...logger.Field) logger.Logger {
 }
 
 func toZap(fields []logger.Field) []zap.Field {
+
 	res := make([]zap.Field, len(fields))
 	for i, f := range fields {
 		switch f.Type {

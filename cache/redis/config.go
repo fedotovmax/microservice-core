@@ -12,6 +12,7 @@ type Config struct {
 	MinRetryBackoff     time.Duration
 	MaxConnLifetime     time.Duration
 	MaxIdleConnLifetime time.Duration
+	PubSubRetryWaitFrom time.Duration
 	Addr                string
 	Password            string
 	DB                  int
@@ -62,36 +63,43 @@ func WithMaxIdleConns(n int) ConfigOption {
 	}
 }
 
-func defaultConfig() *Config {
-	return &Config{
+func WithPubSubRetryWaitFrom(t time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.PubSubRetryWaitFrom = t
+	}
+}
+
+func defaultConfig() Config {
+	return Config{
 		MaxRetryBackoff:     100 * time.Second,
 		MinRetryBackoff:     1 * time.Second,
 		MaxConnLifetime:     60 * time.Minute,
 		MaxIdleConnLifetime: 10 * time.Minute,
+		PubSubRetryWaitFrom: 3 * time.Second,
 		MaxRetries:          5,
 		PoolSize:            20,
 		MaxIdleConns:        5,
 	}
 }
 
-func NewConfig(addr, password string, db int, opts ...ConfigOption) (*Config, error) {
+func NewConfig(addr, password string, db int, opts ...ConfigOption) (Config, error) {
 	cfg := defaultConfig()
 	cfg.Addr = addr
 	cfg.Password = password
 	cfg.DB = db
 
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewConfigMust(addr, password string, db int, opts ...ConfigOption) *Config {
+func NewConfigMust(addr, password string, db int, opts ...ConfigOption) Config {
 
 	config, err := NewConfig(addr, password, db, opts...)
 
@@ -102,30 +110,29 @@ func NewConfigMust(addr, password string, db int, opts ...ConfigOption) *Config 
 	return config
 }
 
-func (c Config) Validate() error {
-	const op = "core.cache.redis.Config.Validate"
+func (c *Config) Validate() error {
 
 	if c.Addr == "" {
-		return fmt.Errorf("%s: connection address cannot be empty", op)
+		return fmt.Errorf("redis connection address cannot be empty")
 	}
 
 	if c.MinRetryBackoff > c.MaxRetryBackoff {
-		return fmt.Errorf("%s: min retry backoff (%v) cannot be greater than max (%v)",
-			op, c.MinRetryBackoff, c.MaxRetryBackoff)
+		return fmt.Errorf("redis min retry backoff (%v) cannot be greater than max (%v)",
+			c.MinRetryBackoff, c.MaxRetryBackoff)
 	}
 
 	if c.MaxIdleConns > c.PoolSize {
-		return fmt.Errorf("%s: max idle connections (%d) cannot be greater than pool size (%d)",
-			op, c.MaxIdleConns, c.PoolSize)
+		return fmt.Errorf("redis max idle connections (%d) cannot be greater than pool size (%d)",
+			c.MaxIdleConns, c.PoolSize)
 	}
 
 	if c.MaxIdleConnLifetime > c.MaxConnLifetime && c.MaxConnLifetime != 0 {
-		return fmt.Errorf("%s: max idle conn lifetime (%v) cannot exceed max conn lifetime (%v)",
-			op, c.MaxIdleConnLifetime, c.MaxConnLifetime)
+		return fmt.Errorf("redis max idle conn lifetime (%v) cannot exceed max conn lifetime (%v)",
+			c.MaxIdleConnLifetime, c.MaxConnLifetime)
 	}
 
 	if c.DB < 0 {
-		return fmt.Errorf("%s: invalid redis db index: %d", op, c.DB)
+		return fmt.Errorf("redis db index must be greater than or equal 0: %d", c.DB)
 	}
 
 	return nil
