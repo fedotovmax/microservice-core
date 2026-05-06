@@ -4,42 +4,42 @@ import (
 	"fmt"
 )
 
-type FailedEvent struct {
+type FailedMessage struct {
 	meta    any
 	err     error
 	headers []Header
 }
 
-func NewFailedEvent(meta any, h []Header, err error) FailedEvent {
-	return FailedEvent{meta: meta, err: err, headers: h}
+func NewFailedMessage(meta any, h []Header, err error) FailedMessage {
+	return FailedMessage{meta: meta, err: err, headers: h}
 }
 
-func (e FailedEvent) GetHeaders() []Header {
+func (e FailedMessage) GetHeaders() []Header {
 	return e.headers
 }
 
-func (e FailedEvent) GetMeta() any {
+func (e FailedMessage) GetMeta() any {
 	return e.meta
 }
 
-func (e FailedEvent) GetError() error {
+func (e FailedMessage) GetError() error {
 	return e.err
 }
 
-type SuccessEvent struct {
+type SuccessMessage struct {
 	meta    any
 	headers []Header
 }
 
-func NewSuccessEvent(meta any, h []Header) SuccessEvent {
-	return SuccessEvent{headers: h, meta: meta}
+func NewSuccessMessage(meta any, h []Header) SuccessMessage {
+	return SuccessMessage{headers: h, meta: meta}
 }
 
-func (e SuccessEvent) GetHeaders() []Header {
+func (e SuccessMessage) GetHeaders() []Header {
 	return e.headers
 }
 
-func (e SuccessEvent) GetMeta() any {
+func (e SuccessMessage) GetMeta() any {
 	return e.meta
 }
 
@@ -48,7 +48,7 @@ type Header struct {
 	Value []byte
 }
 
-type Event struct {
+type Message struct {
 	key     string
 	topic   string
 	payload []byte
@@ -56,14 +56,14 @@ type Event struct {
 	meta    any
 }
 
-func NewEvent(
+func NewMessage(
 	key string,
 	topic string,
 	payload []byte,
 	headers []Header,
 	meta any,
-) Event {
-	return Event{
+) Message {
+	return Message{
 		key:     key,
 		topic:   topic,
 		payload: payload,
@@ -72,27 +72,27 @@ func NewEvent(
 	}
 }
 
-func (e Event) Headers() []Header {
+func (e Message) Headers() []Header {
 	return e.headers
 }
 
-func (e Event) Meta() any {
+func (e Message) Meta() any {
 	return e.meta
 }
 
-func (e Event) Topic() string {
+func (e Message) Topic() string {
 	return e.topic
 }
 
-func (e Event) Key() string {
+func (e Message) Key() string {
 	return e.key
 }
 
-func (e Event) Payload() []byte {
+func (e Message) Payload() []byte {
 	return e.payload
 }
 
-type ConsumeEvent struct {
+type ConsumeMessage struct {
 	payload   []byte
 	key       []byte
 	offset    int64
@@ -101,15 +101,15 @@ type ConsumeEvent struct {
 	headers   []Header
 }
 
-func NewConsumeEvent(
+func NewConsumeMessage(
 	payload []byte,
 	key []byte,
 	offset int64,
 	topic string,
 	partition int32,
 	headers []Header,
-) ConsumeEvent {
-	return ConsumeEvent{
+) ConsumeMessage {
+	return ConsumeMessage{
 		payload:   payload,
 		key:       key,
 		offset:    offset,
@@ -119,27 +119,27 @@ func NewConsumeEvent(
 	}
 }
 
-func (e *ConsumeEvent) Payload() []byte {
+func (e *ConsumeMessage) Payload() []byte {
 	return e.payload
 }
 
-func (e *ConsumeEvent) Key() []byte {
+func (e *ConsumeMessage) Key() []byte {
 	return e.key
 }
 
-func (e *ConsumeEvent) Offset() int64 {
+func (e *ConsumeMessage) Offset() int64 {
 	return e.offset
 }
 
-func (e *ConsumeEvent) Topic() string {
+func (e *ConsumeMessage) Topic() string {
 	return e.topic
 }
 
-func (e *ConsumeEvent) Partition() int32 {
+func (e *ConsumeMessage) Partition() int32 {
 	return e.partition
 }
 
-func (e *ConsumeEvent) Headers() []Header {
+func (e *ConsumeMessage) Headers() []Header {
 	return e.headers
 }
 

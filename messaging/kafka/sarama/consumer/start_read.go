@@ -31,7 +31,7 @@ func (c *group) startRead(ctx context.Context, readParams kafka.ConsumerGroupSta
 			return
 		}
 
-		gh := NewGroupHandler(c.log, readParams, c.config.MaxProcessingTime)
+		gh := newGroupHandler(c.log, readParams, c.config.MaxProcessingTime)
 
 		err := c.g.Consume(ctx, c.config.Topics, gh)
 

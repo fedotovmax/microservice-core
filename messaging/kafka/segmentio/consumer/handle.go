@@ -81,7 +81,7 @@ func (c *group) handle(ctx context.Context, onSetup kafka.OnSetup, onCleanUp kaf
 		// Успешный Fetch — сбрасываем счетчик ретраев
 		attempt = 0
 
-		ev := kafka.NewConsumeEvent(
+		ev := kafka.NewConsumeMessage(
 			msg.Value,
 			msg.Key,
 			msg.Offset,
@@ -118,7 +118,7 @@ func (c *group) handle(ctx context.Context, onSetup kafka.OnSetup, onCleanUp kaf
 	}
 }
 
-func (c *group) handleWithTimeout(ctx context.Context, h kafka.MessageHandler, ev kafka.ConsumeEvent) error {
+func (c *group) handleWithTimeout(ctx context.Context, h kafka.MessageHandler, ev kafka.ConsumeMessage) error {
 	readCtx, cancel := context.WithTimeout(ctx, c.config.MaxProcessingTime)
 	defer cancel()
 	return h(readCtx, ev)

@@ -9,7 +9,7 @@ import (
 	coreSarama "github.com/fedotovmax/microservice-core/messaging/kafka/sarama"
 )
 
-func (p *producer) Send(ctx context.Context, event kafka.Event) error {
+func (p *producer) Send(ctx context.Context, event kafka.Message) error {
 
 	const op = "core.messaging.kafka.sarama.producer.Send"
 

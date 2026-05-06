@@ -18,7 +18,7 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 	for m := range p.errCh {
 
 		// Извлекаем сохраненную ошибку и метаданные
-		failedEvent := kafka.NewFailedEvent(m.WriterData, segmentio.HeadersFromSegmentio(m.Headers), m.Error)
+		failedEvent := kafka.NewFailedMessage(m.WriterData, segmentio.HeadersFromSegmentio(m.Headers), m.Error)
 
 		err := p.handleError(failedEvent, timeout, onError)
 
@@ -29,7 +29,7 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 	}
 }
 
-func (p *producer) handleError(e kafka.FailedEvent, timeout time.Duration, onError kafka.OnError) error {
+func (p *producer) handleError(e kafka.FailedMessage, timeout time.Duration, onError kafka.OnError) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return onError(ctx, e)

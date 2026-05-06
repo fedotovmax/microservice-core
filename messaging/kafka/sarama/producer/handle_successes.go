@@ -17,7 +17,7 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 
 	for event := range p.ap.Successes() {
 
-		successEvent := kafka.NewSuccessEvent(event.Metadata, coreSarama.HeadersFromSarama(event.Headers))
+		successEvent := kafka.NewSuccessMessage(event.Metadata, coreSarama.HeadersFromSarama(event.Headers))
 
 		err := p.handleSuccess(successEvent, timeout, onSuccess)
 
@@ -28,7 +28,7 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 	}
 }
 
-func (p *producer) handleSuccess(e kafka.SuccessEvent, timeout time.Duration, onSuccess kafka.OnSuccess) error {
+func (p *producer) handleSuccess(e kafka.SuccessMessage, timeout time.Duration, onSuccess kafka.OnSuccess) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return onSuccess(ctx, e)

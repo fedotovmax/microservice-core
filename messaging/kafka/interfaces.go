@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-type OnSuccess func(ctx context.Context, event SuccessEvent) error
-type OnError func(ctx context.Context, event FailedEvent) error
+type OnSuccess func(ctx context.Context, event SuccessMessage) error
+type OnError func(ctx context.Context, event FailedMessage) error
 
 type AsyncProducer interface {
-	Send(ctx context.Context, event Event) error
+	Send(ctx context.Context, event Message) error
 	HandleErrors(timeout time.Duration, onError OnError)
 	HandleSuccesses(timeout time.Duration, onSuccess OnSuccess)
 	Stop(ctx context.Context) error
@@ -20,7 +20,7 @@ type ConsumerGroup interface {
 	Stop(ctx context.Context) error
 }
 
-type MessageHandler func(ctx context.Context, ev ConsumeEvent) error
+type MessageHandler func(ctx context.Context, ev ConsumeMessage) error
 
 type Middleware func(next MessageHandler) MessageHandler
 

@@ -9,7 +9,7 @@ import (
 	skafka "github.com/segmentio/kafka-go"
 )
 
-func (p *producer) Send(ctx context.Context, event kafka.Event) error {
+func (p *producer) Send(ctx context.Context, event kafka.Message) error {
 	const op = "core.messaging.kafka.segmentio.producer.Send"
 
 	msg := skafka.Message{

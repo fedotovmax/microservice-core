@@ -17,7 +17,7 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 
 	for event := range p.ap.Errors() {
 
-		failedEvent := kafka.NewFailedEvent(event.Msg.Metadata, coreSarama.HeadersFromSarama(event.Msg.Headers), event.Err)
+		failedEvent := kafka.NewFailedMessage(event.Msg.Metadata, coreSarama.HeadersFromSarama(event.Msg.Headers), event.Err)
 
 		err := p.handleError(failedEvent, timeout, onError)
 
@@ -28,7 +28,7 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 	}
 }
 
-func (p *producer) handleError(e kafka.FailedEvent, timeout time.Duration, onError kafka.OnError) error {
+func (p *producer) handleError(e kafka.FailedMessage, timeout time.Duration, onError kafka.OnError) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return onError(ctx, e)

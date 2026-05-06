@@ -77,14 +77,23 @@ func WithHandleErrorTimeout(d time.Duration) Option {
 	}
 }
 
+const (
+	defaultBatchLimit           = 100
+	defaultInterval             = 2 * time.Second
+	defaultReserveDuration      = 5 * time.Minute
+	defaultSendTimeout          = 2 * time.Second
+	defaultHandleSuccessTimeout = 1 * time.Second
+	defaultHandleErrorTimeout   = 1 * time.Second
+)
+
 func defaultConfig() *Config {
 	return &Config{
-		BatchLimit:           100,
-		Interval:             2 * time.Second,
-		ReserveDuration:      5 * time.Minute,
-		SendTimeout:          1 * time.Second,
-		HandleSuccessTimeout: 1 * time.Second,
-		HandleErrorTimeout:   1 * time.Second,
+		BatchLimit:           defaultBatchLimit,
+		Interval:             defaultInterval,
+		ReserveDuration:      defaultReserveDuration,
+		SendTimeout:          defaultSendTimeout,
+		HandleSuccessTimeout: defaultHandleSuccessTimeout,
+		HandleErrorTimeout:   defaultHandleErrorTimeout,
 	}
 }
 
