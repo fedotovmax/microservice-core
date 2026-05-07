@@ -13,7 +13,7 @@ type ShardedPool struct {
 	pools []postgres.Pool
 }
 
-func NewSharded(ctx context.Context, config *ShardedConfig) (postgres.ShardedPool, error) {
+func NewSharded(ctx context.Context, config ShardedConfig) (postgres.ShardedPool, error) {
 
 	//TODO: maybe add errgroup?
 	const op = "core.db.postgres.pgx.NewSharded"

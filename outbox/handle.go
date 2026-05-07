@@ -33,9 +33,9 @@ func (p *Outbox) handle(ctx context.Context) {
 		if err != nil {
 			log.Error(
 				"error when send event to kafka",
-				logger.String("event_key", events[idx].Key()),
+				logger.String("event_key", events[idx].RoutingKey()),
 				logger.Any("event_headers", events[idx].Headers()),
-				logger.Any("event_meta", events[idx].Meta()),
+				logger.Any("event_meta", events[idx].InternalMeta()),
 				logger.Err(err),
 			)
 			continue

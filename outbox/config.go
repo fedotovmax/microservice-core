@@ -86,8 +86,8 @@ const (
 	defaultHandleErrorTimeout   = 1 * time.Second
 )
 
-func defaultConfig() *Config {
-	return &Config{
+func defaultConfig() Config {
+	return Config{
 		BatchLimit:           defaultBatchLimit,
 		Interval:             defaultInterval,
 		ReserveDuration:      defaultReserveDuration,
@@ -131,21 +131,21 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func NewConfig(opts ...Option) (*Config, error) {
+func NewConfig(opts ...Option) (Config, error) {
 	cfg := defaultConfig()
 
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewConfigMust(opts ...Option) *Config {
+func NewConfigMust(opts ...Option) Config {
 	cfg, err := NewConfig(opts...)
 	if err != nil {
 		panic(err)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fedotovmax/microservice-core/logger"
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -51,6 +52,15 @@ func New(ctx context.Context, config Config, opts ...ClientOption) (Client, erro
 
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", opNew, err)
+	}
+
+	if config.Tracing {
+		if err := redisotel.InstrumentTracing(rc); err != nil {
+			return nil, fmt.Errorf("%s: %w", opNew, err)
+		}
+		if err := redisotel.InstrumentMetrics(rc); err != nil {
+			return nil, fmt.Errorf("%s: %w", opNew, err)
+		}
 	}
 
 	subsCtx, cancelSubs := context.WithCancel(context.Background())

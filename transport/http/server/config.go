@@ -37,8 +37,8 @@ func WithOnStartErrorHandlerTimeout(d time.Duration) Option {
 	}
 }
 
-func defaultConfig() *Config {
-	return &Config{
+func defaultConfig() Config {
+	return Config{
 		ReadTimeout:                5 * time.Second,
 		ReadHeaderTimeout:          3 * time.Second,
 		WriteTimeout:               10 * time.Second,
@@ -47,22 +47,22 @@ func defaultConfig() *Config {
 	}
 }
 
-func NewConfig(addr string, opts ...Option) (*Config, error) {
+func NewConfig(addr string, opts ...Option) (Config, error) {
 	cfg := defaultConfig()
 	cfg.Addr = addr
 
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewConfigMust(addr string, opts ...Option) *Config {
+func NewConfigMust(addr string, opts ...Option) Config {
 
 	config, err := NewConfig(addr, opts...)
 

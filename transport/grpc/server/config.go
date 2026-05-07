@@ -19,28 +19,28 @@ type Config struct {
 	OnStartErrorHandlersTimeout time.Duration
 }
 
-func defaultConfig() *Config {
-	return &Config{
+func defaultConfig() Config {
+	return Config{
 		OnStartErrorHandlersTimeout: time.Second * 5,
 	}
 }
 
-func NewConfig(addr string, opts ...Option) (*Config, error) {
+func NewConfig(addr string, opts ...Option) (Config, error) {
 	cfg := defaultConfig()
 	cfg.Addr = addr
 
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewConfigMust(addr string, opts ...Option) *Config {
+func NewConfigMust(addr string, opts ...Option) Config {
 
 	config, err := NewConfig(addr, opts...)
 

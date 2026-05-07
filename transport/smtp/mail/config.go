@@ -14,8 +14,8 @@ type Config struct {
 	DisplayName string
 }
 
-func NewConfig(host string, port int, secret, sender, displayName string) (*Config, error) {
-	cfg := &Config{
+func NewConfig(host string, port int, secret, sender, displayName string) (Config, error) {
+	cfg := Config{
 		Host:        host,
 		Port:        port,
 		Secret:      secret,
@@ -24,13 +24,13 @@ func NewConfig(host string, port int, secret, sender, displayName string) (*Conf
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewConfigMust(host string, port int, secret, sender, displayName string) *Config {
+func NewConfigMust(host string, port int, secret, sender, displayName string) Config {
 
 	cfg, err := NewConfig(host, port, secret, sender, displayName)
 

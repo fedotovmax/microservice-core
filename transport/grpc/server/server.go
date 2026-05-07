@@ -31,7 +31,7 @@ const (
 type RegisterFunc func(grpc.ServiceRegistrar)
 
 type gRPCServer struct {
-	config    *Config
+	config    Config
 	gRPC      *grpc.Server
 	mu        sync.Mutex
 	state     state
@@ -41,7 +41,7 @@ type gRPCServer struct {
 }
 
 // Теперь New принимает слайс функций регистрации
-func New(c *Config, log logger.Logger, registers []RegisterFunc, opts ...grpc.ServerOption) (Server, error) {
+func New(c Config, log logger.Logger, registers []RegisterFunc, opts ...grpc.ServerOption) (Server, error) {
 
 	if err := c.Validate(); err != nil {
 		return nil, err

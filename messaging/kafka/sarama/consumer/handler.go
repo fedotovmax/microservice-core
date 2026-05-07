@@ -23,7 +23,7 @@ func newGroupHandler(
 	log logger.Logger,
 	p kafka.ConsumerGroupStartReadParams,
 	maxProcTime time.Duration,
-) *groupHandler {
+) sarama.ConsumerGroupHandler {
 
 	for i := len(p.Middlewares) - 1; i >= 0; i-- {
 		p.MessageHandler = p.Middlewares[i](p.MessageHandler)

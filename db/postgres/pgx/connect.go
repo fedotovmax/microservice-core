@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/fedotovmax/microservice-core/ft"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func connectWithRetries(
 	ctx context.Context,
-	config *BaseConfig,
+	config BaseConfig,
 	dsn string,
 ) (*pgxpool.Pool, error) {
 	const op = "core.db.postgres.pgx.connectWithRetries"
@@ -25,6 +26,10 @@ func connectWithRetries(
 	parsedConfig.MaxConnLifetime = config.MaxConnLifetime
 	parsedConfig.MinConns = int32(config.MinConns)
 	parsedConfig.MaxConnIdleTime = config.MaxIdleConnLifetime
+
+	if config.Tracing {
+		parsedConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+	}
 
 	// Создаем пул. Важно: pgxpool.NewWithConfig не устанавливает соединение сразу,
 	// он просто инициализирует структуру. Настоящая проверка идет через Ping.

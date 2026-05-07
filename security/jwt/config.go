@@ -7,11 +7,11 @@ type Config struct {
 	Issuer string
 }
 
-func NewConfig(s, i string) (*Config, error) {
+func NewConfig(s, i string) (Config, error) {
 
 	if s == "" || i == "" {
-		return nil, fmt.Errorf("secret key and issuer cannot be empty")
+		return Config{}, fmt.Errorf("secret key and issuer cannot be empty")
 	}
 
-	return &Config{Secret: s, Issuer: i}, nil
+	return Config{Secret: s, Issuer: i}, nil
 }

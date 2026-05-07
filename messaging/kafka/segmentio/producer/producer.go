@@ -1,10 +1,17 @@
 package producer
 
 import (
+	"context"
+
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	skafka "github.com/segmentio/kafka-go"
 )
+
+type segmentioWriter interface {
+	WriteMessages(ctx context.Context, msgs ...skafka.Message) error
+	Close() error
+}
 
 type errMessage struct {
 	skafka.Message
@@ -12,13 +19,13 @@ type errMessage struct {
 }
 
 type producer struct {
-	w         *skafka.Writer
+	w         segmentioWriter
 	log       logger.Logger
 	successCh chan skafka.Message
 	errCh     chan errMessage // В segmentio ошибка лежит внутри Message при использовании Completion
 }
 
-func New(log logger.Logger, config *kafka.ProducerConfig) (kafka.AsyncProducer, error) {
+func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, error) {
 	const op = "core.messaging.kafka.segmentio.producer.New"
 
 	// Каналы для связи Completion callback с методами Handle
@@ -57,8 +64,22 @@ func New(log logger.Logger, config *kafka.ProducerConfig) (kafka.AsyncProducer, 
 		},
 	}
 
+	var writer segmentioWriter
+
+	if config.Tracing {
+		writer = newOtelWriter(w)
+	} else {
+		writer = w
+	}
+
+	if config.Tracing {
+		writer = newOtelWriter(w)
+	} else {
+		writer = w
+	}
+
 	return &producer{
-		w:         w,
+		w:         writer,
 		log:       log,
 		successCh: successCh,
 		errCh:     errCh,

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/IBM/sarama"
+	"github.com/dnwe/otelsarama"
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 )
@@ -13,7 +14,7 @@ type producer struct {
 	log logger.Logger
 }
 
-func New(log logger.Logger, config *kafka.ProducerConfig) (kafka.AsyncProducer, error) {
+func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, error) {
 	const op = "core.messaging.kafka.sarama.producer.New"
 
 	saramaConfig := sarama.NewConfig()
@@ -43,6 +44,10 @@ func New(log logger.Logger, config *kafka.ProducerConfig) (kafka.AsyncProducer, 
 	saramaConfig.Producer.Compression = sarama.CompressionSnappy
 
 	ap, err := sarama.NewAsyncProducer(config.Brokers, saramaConfig)
+
+	if config.Tracing {
+		ap = otelsarama.WrapAsyncProducer(saramaConfig, ap)
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("%s: error when create async producer instance: %w", op, err)

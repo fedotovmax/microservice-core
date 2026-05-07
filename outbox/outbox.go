@@ -17,13 +17,13 @@ type Outbox struct {
 	inProcess          atomic.Bool
 }
 
-func New(config *Config, p AsyncPublisher, a DataSource, log logger.Logger) *Outbox {
+func New(config Config, p AsyncPublisher, a DataSource, log logger.Logger) *Outbox {
 
 	return &Outbox{
 		log:                log,
 		producer:           p,
 		adapter:            a,
-		config:             *config,
+		config:             config,
 		stopProcessSignal:  make(chan struct{}),
 		isStopped:          make(chan struct{}),
 		processingFinished: make(chan struct{}),

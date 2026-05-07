@@ -19,6 +19,13 @@ type Config struct {
 	MaxRetries          int
 	PoolSize            int
 	MaxIdleConns        int
+	Tracing             bool
+}
+
+func WithTracing(f bool) ConfigOption {
+	return func(c *Config) {
+		c.Tracing = f
+	}
 }
 
 func WithMaxRetryBackoff(b time.Duration) ConfigOption {
@@ -79,6 +86,7 @@ func defaultConfig() Config {
 		MaxRetries:          5,
 		PoolSize:            20,
 		MaxIdleConns:        5,
+		Tracing:             false,
 	}
 }
 

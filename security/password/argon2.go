@@ -19,7 +19,7 @@ type Argon2Config struct {
 }
 
 // HashPassword генерирует Argon2id хеш с заданными параметрами
-func HashPassword(password string, c Argon2Config) (string, error) {
+func Argon2Hash(password string, c Argon2Config) (string, error) {
 	// Генерация случайной соли
 	salt := make([]byte, c.SaltLength)
 	if _, err := rand.Read(salt); err != nil {
@@ -41,7 +41,7 @@ func HashPassword(password string, c Argon2Config) (string, error) {
 }
 
 // CheckPassword сравнивает пароль с хешем, извлекая параметры из самого хеша
-func CheckPassword(password, encodedHash string) error {
+func Argon2Compare(password, encodedHash string) error {
 	// Разбираем строку хеша на части
 	parts := strings.Split(encodedHash, "$")
 	if len(parts) != 6 {

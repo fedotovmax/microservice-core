@@ -17,7 +17,7 @@ type zapLogger struct {
 	file *os.File
 }
 
-func New(config *Config) (logger.Logger, error) {
+func New(config Config) (logger.Logger, error) {
 
 	const op = "core.logger.zap.New"
 
@@ -73,7 +73,7 @@ func (l *zapLogger) Stop() {
 	}
 }
 
-func initWithLogFolder(config *Config, zapLevel zap.AtomicLevel) (logger.Logger, error) {
+func initWithLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, error) {
 
 	const op = "core.logger.zap.initWithLogFolder"
 
@@ -120,7 +120,7 @@ func initWithLogFolder(config *Config, zapLevel zap.AtomicLevel) (logger.Logger,
 	}, nil
 }
 
-func initWithoutLogFolder(config *Config, zapLevel zap.AtomicLevel) (logger.Logger, error) {
+func initWithoutLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, error) {
 
 	const op = "core.logger.zap.initWithoutLogFolder"
 

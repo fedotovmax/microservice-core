@@ -15,6 +15,13 @@ type BaseConfig struct {
 	MaxConns            int
 	MinConns            int
 	MaxRetries          int
+	Tracing             bool
+}
+
+func WithTracing(f bool) Option {
+	return func(c *BaseConfig) {
+		c.Tracing = f
+	}
 }
 
 func WithRetryWaitFrom(d time.Duration) Option {
@@ -53,14 +60,15 @@ func WithMaxRetries(n int) Option {
 	}
 }
 
-func defaultBaseConfig() *BaseConfig {
-	return &BaseConfig{
+func defaultBaseConfig() BaseConfig {
+	return BaseConfig{
 		RetryWaitFrom:       5 * time.Second,
 		MaxConnLifetime:     30 * time.Minute,
 		MaxIdleConnLifetime: 5 * time.Minute,
 		MaxConns:            20,
 		MinConns:            5,
 		MaxRetries:          5,
+		Tracing:             false,
 	}
 }
 
@@ -113,30 +121,30 @@ func (b *BaseConfig) Validate() error {
 }
 
 type Config struct {
-	*BaseConfig
+	BaseConfig
 	Dsn string
 }
 
-func NewConfig(dsn string, opts ...Option) (*Config, error) {
+func NewConfig(dsn string, opts ...Option) (Config, error) {
 	base := defaultBaseConfig()
 
 	for _, opt := range opts {
-		opt(base)
+		opt(&base)
 	}
 
-	cfg := &Config{
+	cfg := Config{
 		BaseConfig: base,
 		Dsn:        dsn,
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewConfigMust(dsn string, opts ...Option) *Config {
+func NewConfigMust(dsn string, opts ...Option) Config {
 
 	config, err := NewConfig(dsn)
 
@@ -163,30 +171,30 @@ func (c *Config) Validate() error {
 }
 
 type ShardedConfig struct {
-	*BaseConfig
+	BaseConfig
 	Shards []string
 }
 
-func NewShardedConfig(shards []string, opts ...Option) (*ShardedConfig, error) {
+func NewShardedConfig(shards []string, opts ...Option) (ShardedConfig, error) {
 	base := defaultBaseConfig()
 
 	for _, opt := range opts {
-		opt(base)
+		opt(&base)
 	}
 
-	cfg := &ShardedConfig{
+	cfg := ShardedConfig{
 		BaseConfig: base,
 		Shards:     shards,
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return ShardedConfig{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewShardedConfigMust(shards []string, opts ...Option) *ShardedConfig {
+func NewShardedConfigMust(shards []string, opts ...Option) ShardedConfig {
 
 	config, err := NewShardedConfig(shards, opts...)
 

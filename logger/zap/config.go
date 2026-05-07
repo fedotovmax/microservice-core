@@ -27,28 +27,28 @@ func WithLogFolder(path string) Option {
 	}
 }
 
-func defaultConfig() *Config {
-	return &Config{
+func defaultConfig() Config {
+	return Config{
 		Level:    LevelDebug,
 		Encoding: EncodingPlainText,
 	}
 }
 
-func NewConfig(opts ...Option) (*Config, error) {
+func NewConfig(opts ...Option) (Config, error) {
 	cfg := defaultConfig()
 
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return Config{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewConfigMust() *Config {
+func NewConfigMust() Config {
 
 	config, err := NewConfig()
 
@@ -137,7 +137,7 @@ type Config struct {
 	Encoding  Encoding
 }
 
-func (c Config) Validate() error {
+func (c *Config) Validate() error {
 
 	const op = "core.logger.zap.Config.Validate"
 

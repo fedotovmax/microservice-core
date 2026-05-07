@@ -6,65 +6,65 @@ type Header struct {
 }
 
 type Event struct {
-	key     string
-	topic   string
-	payload []byte
-	headers []Header
-	meta    any
+	routingKey   string
+	destination  string
+	payload      []byte
+	headers      []Header
+	internalMeta any
 }
 
 type FailedEvent struct {
-	meta    any
-	err     error
-	headers []Header
+	internalMeta any
+	err          error
+	headers      []Header
 }
 
 func NewFailedEvent(meta any, h []Header, err error) FailedEvent {
-	return FailedEvent{meta: meta, err: err, headers: h}
+	return FailedEvent{internalMeta: meta, err: err, headers: h}
 }
 
-func (e FailedEvent) GetHeaders() []Header {
+func (e FailedEvent) Headers() []Header {
 	return e.headers
 }
 
-func (e FailedEvent) GetMeta() any {
-	return e.meta
+func (e FailedEvent) InternalMeta() any {
+	return e.internalMeta
 }
 
-func (e FailedEvent) GetError() error {
+func (e FailedEvent) Error() error {
 	return e.err
 }
 
 type SuccessEvent struct {
-	meta    any
-	headers []Header
+	internalMeta any
+	headers      []Header
 }
 
 func NewSuccessEvent(meta any, h []Header) SuccessEvent {
-	return SuccessEvent{headers: h, meta: meta}
+	return SuccessEvent{headers: h, internalMeta: meta}
 }
 
-func (e SuccessEvent) GetHeaders() []Header {
+func (e SuccessEvent) Headers() []Header {
 	return e.headers
 }
 
-func (e SuccessEvent) GetMeta() any {
-	return e.meta
+func (e SuccessEvent) InternalMeta() any {
+	return e.internalMeta
 }
 
 func NewEvent(
-	key string,
-	topic string,
+	routingKey string,
+	destination string,
 	payload []byte,
 	headers []Header,
-	meta any,
+	internalMeta any,
 ) Event {
 	return Event{
-		key:     key,
-		topic:   topic,
-		payload: payload,
-		headers: headers,
-		meta:    meta,
+		routingKey:   routingKey,
+		destination:  destination,
+		payload:      payload,
+		headers:      headers,
+		internalMeta: internalMeta,
 	}
 }
 
@@ -72,16 +72,16 @@ func (e Event) Headers() []Header {
 	return e.headers
 }
 
-func (e Event) Meta() any {
-	return e.meta
+func (e Event) InternalMeta() any {
+	return e.internalMeta
 }
 
-func (e Event) Topic() string {
-	return e.topic
+func (e Event) Destination() string {
+	return e.destination
 }
 
-func (e Event) Key() string {
-	return e.key
+func (e Event) RoutingKey() string {
+	return e.routingKey
 }
 
 func (e Event) Payload() []byte {

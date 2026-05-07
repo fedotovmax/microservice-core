@@ -69,8 +69,14 @@ func WithMaxWaitTime(d time.Duration) GroupOption {
 	}
 }
 
-func defaultGroupConfig() *GroupConfig {
-	return &GroupConfig{
+func WithGroupTracing(f bool) GroupOption {
+	return func(c *GroupConfig) {
+		c.Tracing = f
+	}
+}
+
+func defaultGroupConfig() GroupConfig {
+	return GroupConfig{
 		BackoffMaxInterval: 25 * time.Second,
 		BackoffMinInterval: 1 * time.Second,
 		CommitInterval:     10 * time.Second,
@@ -81,27 +87,28 @@ func defaultGroupConfig() *GroupConfig {
 		HeartbeatInterval:  3 * time.Second,
 		RebalanceTimeout:   60 * time.Second,
 		MaxWaitTime:        500 * time.Millisecond,
+		Tracing:            false,
 	}
 }
 
-func NewGroupConfig(brokers []string, topics []string, groupID string, opts ...GroupOption) (*GroupConfig, error) {
+func NewGroupConfig(brokers []string, topics []string, groupID string, opts ...GroupOption) (GroupConfig, error) {
 	cfg := defaultGroupConfig()
 	cfg.Brokers = brokers
 	cfg.Topics = topics
 	cfg.GroupID = groupID
 
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return GroupConfig{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewGroupConfigMust(brokers []string, topics []string, groupID string, opts ...GroupOption) *GroupConfig {
+func NewGroupConfigMust(brokers []string, topics []string, groupID string, opts ...GroupOption) GroupConfig {
 	cfg, err := NewGroupConfig(brokers, topics, groupID, opts...)
 	if err != nil {
 		panic(err)
@@ -133,9 +140,11 @@ type GroupConfig struct {
 
 	// MaxWaitTime only for sarama, do not provide if use segmentio
 	MaxWaitTime time.Duration
+
+	Tracing bool
 }
 
-func (c GroupConfig) Validate() error {
+func (c *GroupConfig) Validate() error {
 
 	const op = "core.messaging.kafka.GroupConfig.Validate"
 

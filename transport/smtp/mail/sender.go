@@ -25,7 +25,7 @@ type Sender struct {
 	d idialer
 }
 
-func New(config *Config) (*Sender, error) {
+func New(config Config) (*Sender, error) {
 
 	const op = "core.transport.smtp.mail.New"
 

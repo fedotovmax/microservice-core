@@ -30,11 +30,11 @@ type httpServer struct {
 	state  state
 	srv    *http.Server
 	log    logger.Logger
-	config *Config
+	config Config
 	mux    http.Handler
 }
 
-func New(c *Config, log logger.Logger, mux http.Handler) (Server, error) {
+func New(c Config, log logger.Logger, mux http.Handler) (Server, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}

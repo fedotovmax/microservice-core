@@ -45,33 +45,40 @@ func WithBatchMessagesCount(n int) ProducerOption {
 	}
 }
 
-func defaultProducerConfig() *ProducerConfig {
-	return &ProducerConfig{
+func WithProducerTracing(f bool) ProducerOption {
+	return func(c *ProducerConfig) {
+		c.Tracing = f
+	}
+}
+
+func defaultProducerConfig() ProducerConfig {
+	return ProducerConfig{
 		ChannelBufferSize:  256,
 		SendMaxRetries:     3,
 		RetryBackoff:       100 * time.Millisecond,
 		BatchFrequency:     100 * time.Millisecond,
 		BatchBytes:         1048576, // 1MB
 		BatchMessagesCount: 100,
+		Tracing:            false,
 	}
 }
 
-func NewProducerConfig(brokers []string, opts ...ProducerOption) (*ProducerConfig, error) {
+func NewProducerConfig(brokers []string, opts ...ProducerOption) (ProducerConfig, error) {
 	cfg := defaultProducerConfig()
 	cfg.Brokers = brokers
 
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, err
+		return ProducerConfig{}, err
 	}
 
 	return cfg, nil
 }
 
-func NewProducerConfigMust(brokers []string, opts ...ProducerOption) *ProducerConfig {
+func NewProducerConfigMust(brokers []string, opts ...ProducerOption) ProducerConfig {
 	cfg, err := NewProducerConfig(brokers, opts...)
 	if err != nil {
 		panic(err)
@@ -96,9 +103,11 @@ type ProducerConfig struct {
 	// Должен коррелировать с BatchLimit в Outbox.
 	// Если в Outbox лимит 100, а тут 300, Sarama будет ждать 3 итерации Outbox или таймаута Frequency.
 	BatchMessagesCount int
+
+	Tracing bool
 }
 
-func (c ProducerConfig) Validate() error {
+func (c *ProducerConfig) Validate() error {
 	const op = "core.messaging.kafka.ProducerConfig.Validate"
 
 	if len(c.Brokers) == 0 {

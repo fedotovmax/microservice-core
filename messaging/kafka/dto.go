@@ -14,15 +14,15 @@ func NewFailedMessage(meta any, h []Header, err error) FailedMessage {
 	return FailedMessage{meta: meta, err: err, headers: h}
 }
 
-func (e FailedMessage) GetHeaders() []Header {
+func (e FailedMessage) Headers() []Header {
 	return e.headers
 }
 
-func (e FailedMessage) GetMeta() any {
+func (e FailedMessage) Meta() any {
 	return e.meta
 }
 
-func (e FailedMessage) GetError() error {
+func (e FailedMessage) Error() error {
 	return e.err
 }
 
@@ -35,11 +35,11 @@ func NewSuccessMessage(meta any, h []Header) SuccessMessage {
 	return SuccessMessage{headers: h, meta: meta}
 }
 
-func (e SuccessMessage) GetHeaders() []Header {
+func (e SuccessMessage) Headers() []Header {
 	return e.headers
 }
 
-func (e SuccessMessage) GetMeta() any {
+func (e SuccessMessage) Meta() any {
 	return e.meta
 }
 

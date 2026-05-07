@@ -13,7 +13,7 @@ type pool struct {
 	*pgxpool.Pool
 }
 
-func New(ctx context.Context, config *Config) (postgres.Pool, error) {
+func New(ctx context.Context, config Config) (postgres.Pool, error) {
 
 	const op = "core.db.postgres.pgx.New"
 
