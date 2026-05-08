@@ -43,10 +43,30 @@ func HeadersFromPtrSarama(h []*sarama.RecordHeader) []kafka.Header {
 	return hs
 }
 
-// TODO: maybe add payload for Success, Failed Events??
-func ExtractValue(msg *sarama.ProducerMessage) ([]byte, error) {
-	if msg.Value == nil {
-		return nil, nil
+func NewMessageFromProducer(msg *sarama.ProducerMessage, meta any) (kafka.Message, error) {
+
+	key, err := msg.Key.Encode()
+	if err != nil {
+		return kafka.Message{}, err
 	}
-	return msg.Value.Encode()
+
+	value, err := msg.Value.Encode()
+	if err != nil {
+		return kafka.Message{}, err
+	}
+
+	return kafka.NewMessage(string(key), msg.Topic, value, HeadersFromSarama(msg.Headers), meta), nil
+
+}
+
+func NewFailedMessageFromProducer(msg *sarama.ProducerError, meta any) (kafka.FailedMessage, error) {
+
+	km, err := NewMessageFromProducer(msg.Msg, meta)
+
+	if err != nil {
+		return kafka.FailedMessage{}, nil
+	}
+
+	return kafka.NewFailedMessage(km, msg.Err), nil
+
 }

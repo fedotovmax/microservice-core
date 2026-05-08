@@ -16,9 +16,16 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 	log := p.log.With(logger.String("op", op))
 
 	for m := range p.successCh {
-		successEvent := kafka.NewSuccessMessage(m.WriterData, segmentio.HeadersFromSegmentio(m.Headers))
 
-		err := p.handleSuccess(successEvent, timeout, onSuccess)
+		successMsg := kafka.NewMessage(
+			string(m.Key),
+			m.Topic,
+			m.Value,
+			segmentio.HeadersFromSegmentio(m.Headers),
+			m.WriterData,
+		)
+
+		err := p.handleSuccess(successMsg, timeout, onSuccess)
 
 		if err != nil {
 			log.Error("error when call onSuccess callback", logger.Err(err))
@@ -27,7 +34,7 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 	}
 }
 
-func (p *producer) handleSuccess(e kafka.SuccessMessage, timeout time.Duration, onSuccess kafka.OnSuccess) error {
+func (p *producer) handleSuccess(e kafka.Message, timeout time.Duration, onSuccess kafka.OnSuccess) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return onSuccess(ctx, e)

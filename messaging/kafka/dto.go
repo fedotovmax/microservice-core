@@ -4,44 +4,44 @@ import (
 	"fmt"
 )
 
-type FailedMessage struct {
-	meta    any
-	err     error
-	headers []Header
-}
+// type FailedMessage struct {
+// 	meta    any
+// 	err     error
+// 	headers []Header
+// }
 
-func NewFailedMessage(meta any, h []Header, err error) FailedMessage {
-	return FailedMessage{meta: meta, err: err, headers: h}
-}
+// func NewFailedMessage(meta any, h []Header, err error) FailedMessage {
+// 	return FailedMessage{meta: meta, err: err, headers: h}
+// }
 
-func (e FailedMessage) Headers() []Header {
-	return e.headers
-}
+// func (e FailedMessage) Headers() []Header {
+// 	return e.headers
+// }
 
-func (e FailedMessage) Meta() any {
-	return e.meta
-}
+// func (e FailedMessage) Meta() any {
+// 	return e.meta
+// }
 
-func (e FailedMessage) Error() error {
-	return e.err
-}
+// func (e FailedMessage) Error() error {
+// 	return e.err
+// }
 
-type SuccessMessage struct {
-	meta    any
-	headers []Header
-}
+// type SuccessMessage struct {
+// 	meta    any
+// 	headers []Header
+// }
 
-func NewSuccessMessage(meta any, h []Header) SuccessMessage {
-	return SuccessMessage{headers: h, meta: meta}
-}
+// func NewSuccessMessage(meta any, h []Header) SuccessMessage {
+// 	return SuccessMessage{headers: h, meta: meta}
+// }
 
-func (e SuccessMessage) Headers() []Header {
-	return e.headers
-}
+// func (e SuccessMessage) Headers() []Header {
+// 	return e.headers
+// }
 
-func (e SuccessMessage) Meta() any {
-	return e.meta
-}
+// func (e SuccessMessage) Meta() any {
+// 	return e.meta
+// }
 
 type Header struct {
 	Key   []byte
@@ -90,6 +90,23 @@ func (e Message) Key() string {
 
 func (e Message) Payload() []byte {
 	return e.payload
+}
+
+type FailedMessage struct {
+	msg Message
+	err error
+}
+
+func NewFailedMessage(msg Message, err error) FailedMessage {
+	return FailedMessage{msg: msg, err: err}
+}
+
+func (m FailedMessage) Message() Message {
+	return m.msg
+}
+
+func (m FailedMessage) Error() error {
+	return m.err
 }
 
 type ConsumeMessage struct {

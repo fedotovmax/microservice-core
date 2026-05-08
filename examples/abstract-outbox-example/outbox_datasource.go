@@ -59,7 +59,7 @@ type Creator interface {
 	Create(ctx context.Context, event Event) (uuid.UUID, error)
 }
 
-func (dsa *DataSourceAdapter) Confirm(ctx context.Context, event outbox.SuccessEvent) error {
+func (dsa *DataSourceAdapter) Confirm(ctx context.Context, event outbox.Event) error {
 
 	meta, ok := event.InternalMeta().(Meta)
 
@@ -110,7 +110,7 @@ func (dsa *DataSourceAdapter) Reserve(ctx context.Context, limit int, duration t
 
 func (dsa *DataSourceAdapter) MarkAsFailed(ctx context.Context, event outbox.FailedEvent) error {
 
-	meta, ok := event.InternalMeta().(Meta)
+	meta, ok := event.Event().InternalMeta().(Meta)
 
 	if !ok {
 		return fmt.Errorf("failed when parse metadata")

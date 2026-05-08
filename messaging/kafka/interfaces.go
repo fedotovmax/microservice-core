@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type OnSuccess func(ctx context.Context, event SuccessMessage) error
+type OnSuccess func(ctx context.Context, event Message) error
 type OnError func(ctx context.Context, event FailedMessage) error
 
 type AsyncProducer interface {

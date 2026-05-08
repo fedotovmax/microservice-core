@@ -14,42 +14,20 @@ type Event struct {
 }
 
 type FailedEvent struct {
-	internalMeta any
-	err          error
-	headers      []Header
+	ev  Event
+	err error
 }
 
-func NewFailedEvent(meta any, h []Header, err error) FailedEvent {
-	return FailedEvent{internalMeta: meta, err: err, headers: h}
+func NewFailedEvent(e Event, err error) FailedEvent {
+	return FailedEvent{ev: e, err: err}
 }
 
-func (e FailedEvent) Headers() []Header {
-	return e.headers
-}
-
-func (e FailedEvent) InternalMeta() any {
-	return e.internalMeta
+func (e FailedEvent) Event() Event {
+	return e.ev
 }
 
 func (e FailedEvent) Error() error {
 	return e.err
-}
-
-type SuccessEvent struct {
-	internalMeta any
-	headers      []Header
-}
-
-func NewSuccessEvent(meta any, h []Header) SuccessEvent {
-	return SuccessEvent{headers: h, internalMeta: meta}
-}
-
-func (e SuccessEvent) Headers() []Header {
-	return e.headers
-}
-
-func (e SuccessEvent) InternalMeta() any {
-	return e.internalMeta
 }
 
 func NewEvent(

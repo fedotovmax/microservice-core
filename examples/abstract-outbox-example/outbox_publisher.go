@@ -46,8 +46,13 @@ func (p *PublisherAdapter) HandleErrors(timeout time.Duration, onError outbox.On
 			return onError(
 				ctx,
 				outbox.NewFailedEvent(
-					event.Meta(),
-					kafkaHeadersToOutbox(event.Headers()),
+					outbox.NewEvent(
+						event.Message().Key(),
+						event.Message().Topic(),
+						event.Message().Payload(),
+						kafkaHeadersToOutbox(event.Message().Headers()),
+						event.Message().Meta(),
+					),
 					event.Error(),
 				),
 			)
@@ -59,12 +64,15 @@ func (p *PublisherAdapter) HandleSuccesses(timeout time.Duration, OnSuccess outb
 
 	p.AsyncProducer.HandleSuccesses(
 		timeout,
-		func(ctx context.Context, event kafka.SuccessMessage) error {
+		func(ctx context.Context, event kafka.Message) error {
 			return OnSuccess(
 				ctx,
-				outbox.NewSuccessEvent(
-					event.Meta(),
+				outbox.NewEvent(
+					event.Key(),
+					event.Topic(),
+					event.Payload(),
 					kafkaHeadersToOutbox(event.Headers()),
+					event.Meta(),
 				),
 			)
 		},

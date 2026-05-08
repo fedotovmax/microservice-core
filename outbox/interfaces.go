@@ -12,11 +12,11 @@ type AsyncPublisher interface {
 	Stop(ctx context.Context) error
 }
 
-type OnSuccess func(ctx context.Context, event SuccessEvent) error
+type OnSuccess func(ctx context.Context, event Event) error
 type OnError func(ctx context.Context, event FailedEvent) error
 
 type DataSource interface {
 	MarkAsFailed(ctx context.Context, event FailedEvent) error
-	Confirm(ctx context.Context, event SuccessEvent) error
+	Confirm(ctx context.Context, event Event) error
 	Reserve(ctx context.Context, limit int, duration time.Duration) ([]Event, error)
 }

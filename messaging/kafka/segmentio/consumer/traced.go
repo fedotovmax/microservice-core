@@ -6,6 +6,7 @@ import (
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	skafka "github.com/segmentio/kafka-go"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -49,7 +50,12 @@ func (t *tracedReader) CommitMessages(ctx context.Context, msgs ...skafka.Messag
 	}
 
 	// Теперь этот спан будет дочерним для Продюсера (или братом для консюмера)
-	ctx, span := t.tracer.Start(ctx, "kafka commit", trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := t.tracer.Start(ctx, "kafka commit",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.Int("messaging.kafka.batch.size", len(msgs)),
+		),
+	)
 	defer span.End()
 
 	err := t.base.CommitMessages(ctx, msgs...)

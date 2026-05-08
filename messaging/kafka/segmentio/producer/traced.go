@@ -95,10 +95,9 @@ func newTracedWriter(w *skafka.Writer) *tracedWriter {
 }
 
 func (o *tracedWriter) WriteMessages(ctx context.Context, msgs ...skafka.Message) error {
-	cp := make([]skafka.Message, len(msgs)) // Копируем, чтобы не портить оригинал
 
-	for i, msg := range msgs {
-		topic := msg.Topic
+	for i := range msgs {
+		topic := msgs[i].Topic
 		if topic == "" {
 			topic = o.w.Topic
 		}
@@ -107,34 +106,33 @@ func (o *tracedWriter) WriteMessages(ctx context.Context, msgs ...skafka.Message
 		spanAttrs := []attribute.KeyValue{
 			semconv.MessagingSystemKey.String("kafka"),
 			semconv.MessagingDestinationName(topic),
-			semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key)),
+			semconv.MessagingKafkaMessageKeyKey.String(string(msgs[i].Key)),
 		}
 
 		// 2. ВОТ ЭТОТ ЦИКЛ: перекладываем бизнес-заголовки в атрибуты спана
-		for _, h := range msg.Headers {
+		for _, h := range msgs[i].Headers {
 			attrKey := "messaging.kafka.header." + string(h.Key)
 			spanAttrs = append(spanAttrs, attribute.String(attrKey, string(h.Value)))
 		}
 
 		// 3. Стартуем спан с собранными атрибутами (используем единое имя трейсера)
-		ctx, span := o.tracer.Start(ctx, topic+" send",
+		msgCtx, span := o.tracer.Start(ctx, topic+" send",
 			trace.WithSpanKind(trace.SpanKindProducer),
 			trace.WithAttributes(spanAttrs...),
 		)
 
 		// 4. Инжектим traceparent в заголовки Segmentio
 		// Здесь как раз отрабатывает msgCarrier.Set, добавляя новый header
-		otel.GetTextMapPropagator().Inject(ctx, msgWriterCarrier{msg: &msg})
+		otel.GetTextMapPropagator().Inject(msgCtx, msgWriterCarrier{msg: &msgs[i]})
 
 		// 5. Оборачиваем данные и спан для коллбека Completion
-		msg.WriterData = spanWrapper{
-			original: msg.WriterData,
+		msgs[i].WriterData = spanWrapper{
+			original: msgs[i].WriterData,
 			span:     span,
 		}
-		cp[i] = msg
 	}
 
-	return o.w.WriteMessages(ctx, cp...)
+	return o.w.WriteMessages(ctx, msgs...)
 }
 
 func (o *tracedWriter) Close() error {

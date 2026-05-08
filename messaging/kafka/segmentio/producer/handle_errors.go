@@ -18,9 +18,18 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 	for m := range p.errCh {
 
 		// Извлекаем сохраненную ошибку и метаданные
-		failedEvent := kafka.NewFailedMessage(m.WriterData, segmentio.HeadersFromSegmentio(m.Headers), m.Error)
+		failedMsg := kafka.NewFailedMessage(
+			kafka.NewMessage(
+				string(m.Key),
+				m.Topic,
+				m.Value,
+				segmentio.HeadersFromSegmentio(m.Headers),
+				m.WriterData,
+			),
+			m.Error,
+		)
 
-		err := p.handleError(failedEvent, timeout, onError)
+		err := p.handleError(failedMsg, timeout, onError)
 
 		if err != nil {
 			log.Error("error when call onError callback", logger.Err(err))
