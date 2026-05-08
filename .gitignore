@@ -3,4 +3,4 @@ main.go
 .env
 Taskfile.yaml
 .old
-examples
+

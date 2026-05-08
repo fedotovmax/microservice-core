@@ -3,14 +3,14 @@ package server
 import (
 	"net/http"
 
-	"github.com/fedotovmax/microservice-core/transport/http/middleware"
+	"github.com/fedotovmax/microservice-core/transport/http/middlewares"
 )
 
 type Route struct {
 	Method      string
 	Path        string
 	Handler     http.Handler
-	Middlewares []middleware.Middleware
+	Middlewares []middlewares.Middleware
 }
 
 func ToHandler(fn http.HandlerFunc) http.Handler {

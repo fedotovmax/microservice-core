@@ -23,7 +23,9 @@ func (c *group) handleErrors(ctx context.Context, onError kafka.OnConsumeError) 
 				return
 			}
 			if err != nil {
-				onError(ctx, err)
+				if onError != nil {
+					onError(ctx, err)
+				}
 			}
 		}
 	}

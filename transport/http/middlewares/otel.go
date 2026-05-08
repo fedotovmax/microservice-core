@@ -1,4 +1,4 @@
-package middleware
+package middlewares
 
 import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"

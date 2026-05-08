@@ -8,6 +8,7 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
+	"github.com/fedotovmax/microservice-core/messaging/kafka/middlewares"
 	coreSarama "github.com/fedotovmax/microservice-core/messaging/kafka/sarama"
 )
 
@@ -23,14 +24,23 @@ func newGroupHandler(
 	log logger.Logger,
 	p kafka.ConsumerGroupStartReadParams,
 	maxProcTime time.Duration,
+	tracing bool,
 ) sarama.ConsumerGroupHandler {
 
+	h := p.MessageHandler
+
+	// 1. Применяем пользовательские мидлвари (накручиваем внутренние слои)
 	for i := len(p.Middlewares) - 1; i >= 0; i-- {
-		p.MessageHandler = p.Middlewares[i](p.MessageHandler)
+		h = p.Middlewares[i](h)
+	}
+
+	// 2. Оборачиваем в НАШ трейсинг (он будет самым внешним и первым перехватит контекст)
+	if tracing {
+		h = middlewares.ConsumerTracingMiddleware()(h)
 	}
 
 	return &groupHandler{
-		handler:           p.MessageHandler,
+		handler:           h,
 		onCleanUp:         p.OnCleanUp,
 		onSetup:           p.OnSetup,
 		maxProcessingTime: maxProcTime,
@@ -40,12 +50,20 @@ func newGroupHandler(
 }
 
 func (h *groupHandler) Setup(s sarama.ConsumerGroupSession) error {
-	return h.onSetup()
+	if h.onSetup != nil {
+		return h.onSetup()
+	}
+
+	return nil
 
 }
 
 func (h *groupHandler) Cleanup(s sarama.ConsumerGroupSession) error {
-	return h.onCleanUp()
+	if h.onCleanUp != nil {
+		return h.onCleanUp()
+	}
+
+	return nil
 }
 
 func (h *groupHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.ConsumerGroupClaim) error {

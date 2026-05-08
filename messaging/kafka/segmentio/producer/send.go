@@ -20,6 +20,8 @@ func (p *producer) Send(ctx context.Context, event kafka.Message) error {
 		Headers:    segmentio.HeadersToSegmentio(event.Headers()),
 	}
 
+	fmt.Printf("PRODUCER HEADERS: %+v\n", msg.Headers)
+
 	// WriteMessages в Async режиме не блокируется дольше, чем нужно на запись в буфер
 	err := p.w.WriteMessages(ctx, msg)
 	if err != nil {

@@ -7,28 +7,65 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	coreSarama "github.com/fedotovmax/microservice-core/messaging/kafka/sarama"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (p *producer) Send(ctx context.Context, event kafka.Message) error {
-
 	const op = "core.messaging.kafka.sarama.producer.Send"
 
+	// 1. Сразу собираем базовое сообщение с твоими заголовками
 	msg := &sarama.ProducerMessage{
 		Topic:    event.Topic(),
 		Key:      sarama.StringEncoder(event.Key()),
 		Value:    sarama.ByteEncoder(event.Payload()),
 		Headers:  coreSarama.HeadersToSarama(event.Headers()),
-		Metadata: event.Meta(),
+		Metadata: event.Meta(), // Пока кладем оригинальную метадату
 	}
 
+	// 2. Если трейсинг включен — дорабатываем сообщение
+	if p.tracer != nil {
+		spanAttrs := []attribute.KeyValue{
+			semconv.MessagingSystemKey.String("kafka"),
+			semconv.MessagingDestinationName(event.Topic()),
+			semconv.MessagingKafkaMessageKeyKey.String(string(event.Key())),
+		}
+
+		for _, h := range event.Headers() {
+			spanAttrs = append(spanAttrs, attribute.String("messaging.kafka.header."+string(h.Key), string(h.Value)))
+		}
+
+		var span trace.Span
+		ctx, span = p.tracer.Start(ctx, event.Topic()+" send",
+			trace.WithSpanKind(trace.SpanKindProducer),
+			trace.WithAttributes(spanAttrs...),
+		)
+
+		// 3. Инжектим прямо в структуру сообщения!
+		otel.GetTextMapPropagator().Inject(ctx, saramaMsgCarrier{msg: msg})
+
+		// 4. Перезаписываем поле Metadata на нашу матрешку
+		msg.Metadata = spanWrapper{
+			original: event.Meta(),
+			span:     span,
+		}
+	}
+
+	// Отправляем в канал...
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf(
-			"%s: cannot send event with key: %s; headers: %v, context is done: %w",
-			op, event.Key(),
-			event.Headers(),
-			ctx.Err(),
-		)
+		if p.tracer != nil {
+			if wrapper, ok := msg.Metadata.(spanWrapper); ok {
+				wrapper.span.RecordError(ctx.Err())
+				wrapper.span.SetStatus(codes.Error, ctx.Err().Error())
+				wrapper.span.End()
+			}
+		}
+		return fmt.Errorf("%s: cannot send event with key: %s; context is done: %w", op, event.Key(), ctx.Err())
+
 	case p.ap.Input() <- msg:
 		return nil
 	}

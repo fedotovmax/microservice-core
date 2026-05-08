@@ -61,6 +61,7 @@ func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup,
 		stopCtx:     ctx,
 		stopCtxFunc: cancel,
 		config:      config,
+		log:         log,
 	}, nil
 
 }

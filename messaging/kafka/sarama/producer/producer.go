@@ -4,14 +4,16 @@ import (
 	"fmt"
 
 	"github.com/IBM/sarama"
-	"github.com/dnwe/otelsarama"
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type producer struct {
-	ap  sarama.AsyncProducer
-	log logger.Logger
+	ap     sarama.AsyncProducer
+	log    logger.Logger
+	tracer trace.Tracer
 }
 
 func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, error) {
@@ -45,14 +47,16 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 
 	ap, err := sarama.NewAsyncProducer(config.Brokers, saramaConfig)
 
+	p := &producer{ap: ap, log: log}
+
 	if config.Tracing {
-		ap = otelsarama.WrapAsyncProducer(saramaConfig, ap)
+		p.tracer = otel.Tracer(kafka.TracerName)
 	}
 
 	if err != nil {
 		return nil, fmt.Errorf("%s: error when create async producer instance: %w", op, err)
 	}
 
-	return &producer{ap: ap, log: log}, nil
+	return p, nil
 
 }

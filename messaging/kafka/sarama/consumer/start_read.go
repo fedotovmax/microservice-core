@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/dnwe/otelsarama"
 	"github.com/fedotovmax/microservice-core/ft"
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
@@ -32,11 +31,7 @@ func (c *group) startRead(ctx context.Context, readParams kafka.ConsumerGroupSta
 			return
 		}
 
-		gh := newGroupHandler(c.log, readParams, c.config.MaxProcessingTime)
-
-		if c.config.Tracing {
-			gh = otelsarama.WrapConsumerGroupHandler(gh)
-		}
+		gh := newGroupHandler(c.log, readParams, c.config.MaxProcessingTime, c.config.Tracing)
 
 		err := c.g.Consume(ctx, c.config.Topics, gh)
 

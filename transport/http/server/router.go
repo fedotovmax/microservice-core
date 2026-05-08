@@ -3,14 +3,14 @@ package server
 import (
 	"net/http"
 
-	"github.com/fedotovmax/microservice-core/transport/http/middleware"
+	"github.com/fedotovmax/microservice-core/transport/http/middlewares"
 	"github.com/go-chi/chi/v5"
 )
 
 type Router interface {
 	RegisterRoute(route Route)
 	RegisterRoutes(routes ...Route)
-	Use(mw ...middleware.Middleware)
+	Use(mw ...middlewares.Middleware)
 	Group(pattern string, fn func(Router))
 	ServeHTTP(w http.ResponseWriter, req *http.Request)
 	Mount(path string, h http.Handler) // Для внешних хендлеров типа Swagger/Prometheus
@@ -27,7 +27,7 @@ func NewRouter() Router {
 
 func (r *router) RegisterRoute(route Route) {
 
-	finalHandler := middleware.Chain(route.Handler, route.Middlewares...)
+	finalHandler := middlewares.Chain(route.Handler, route.Middlewares...)
 
 	r.mux.Method(route.Method, route.Path, finalHandler)
 
@@ -43,7 +43,7 @@ func (r *router) Group(path string, fn func(Router)) {
 	r.mux.Route(path, func(sub chi.Router) { fn(&router{mux: sub}) })
 }
 
-func (r *router) Use(mw ...middleware.Middleware) {
+func (r *router) Use(mw ...middlewares.Middleware) {
 	r.mux.Use(mw...)
 }
 

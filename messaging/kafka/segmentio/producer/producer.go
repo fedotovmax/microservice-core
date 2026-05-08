@@ -64,18 +64,10 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 		},
 	}
 
-	var writer segmentioWriter
+	var writer segmentioWriter = w
 
 	if config.Tracing {
-		writer = newOtelWriter(w)
-	} else {
-		writer = w
-	}
-
-	if config.Tracing {
-		writer = newOtelWriter(w)
-	} else {
-		writer = w
+		writer = newTracedWriter(w)
 	}
 
 	return &producer{

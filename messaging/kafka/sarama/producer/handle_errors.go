@@ -7,23 +7,28 @@ import (
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	coreSarama "github.com/fedotovmax/microservice-core/messaging/kafka/sarama"
+	"go.opentelemetry.io/otel/codes"
 )
 
 func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
-
 	const op = "core.messaging.kafka.sarama.producer.HandleErrors"
-
 	log := p.log.With(logger.String("op", op))
 
 	for event := range p.ap.Errors() {
+		meta := event.Msg.Metadata
 
-		failedEvent := kafka.NewFailedMessage(event.Msg.Metadata, coreSarama.HeadersFromSarama(event.Msg.Headers), event.Err)
+		// Распаковываем спан, фиксируем ошибку брокера и закрываем
+		if wrapper, ok := meta.(spanWrapper); ok {
+			meta = wrapper.original
+			wrapper.span.RecordError(event.Err)
+			wrapper.span.SetStatus(codes.Error, event.Err.Error())
+			wrapper.span.End()
+		}
 
-		err := p.handleError(failedEvent, timeout, onError)
+		failedEvent := kafka.NewFailedMessage(meta, coreSarama.HeadersFromSarama(event.Msg.Headers), event.Err)
 
-		if err != nil {
+		if err := p.handleError(failedEvent, timeout, onError); err != nil {
 			log.Error("error when call onError callback", logger.Err(err))
-			continue
 		}
 	}
 }

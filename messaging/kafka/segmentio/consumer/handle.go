@@ -121,5 +121,6 @@ func (c *group) handle(ctx context.Context, onSetup kafka.OnSetup, onCleanUp kaf
 func (c *group) handleWithTimeout(ctx context.Context, h kafka.MessageHandler, ev kafka.ConsumeMessage) error {
 	readCtx, cancel := context.WithTimeout(ctx, c.config.MaxProcessingTime)
 	defer cancel()
+	fmt.Printf("CONSUMER HEADERS: %+v\n", ev.Headers())
 	return h(readCtx, ev)
 }

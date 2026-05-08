@@ -4,13 +4,19 @@ import (
 	"sync"
 
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
+	"github.com/fedotovmax/microservice-core/messaging/kafka/middlewares"
 )
 
 func (c *group) Start(p kafka.ConsumerGroupStartReadParams, onConsumeError kafka.OnConsumeError) {
 
 	h := p.MessageHandler
+
 	for i := len(p.Middlewares) - 1; i >= 0; i-- {
 		h = p.Middlewares[i](h)
+	}
+
+	if c.config.Tracing {
+		h = middlewares.ConsumerTracingMiddleware()(h)
 	}
 
 	wg := &sync.WaitGroup{}

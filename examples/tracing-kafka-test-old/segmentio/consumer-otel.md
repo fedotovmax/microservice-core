@@ -1,3 +1,4 @@
+```go
 package consumer
 
 import (
@@ -28,3 +29,19 @@ func (o *otel) CommitMessages(ctx context.Context, msgs ...skafka.Message) error
 func (o *otel) Close() error {
 	return o.r.Close()
 }
+
+```
+
+```go
+	var reader segmentioReader
+
+	if config.Tracing {
+		otelReader, err := otelkafka.NewReader(r)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
+		reader = newOtel(otelReader)
+	} else {
+		reader = r
+	}
+```

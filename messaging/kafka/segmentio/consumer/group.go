@@ -2,10 +2,8 @@ package consumer
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
-	otelkafka "github.com/Trendyol/otel-kafka-konsumer"
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	skafka "github.com/segmentio/kafka-go"
@@ -47,16 +45,10 @@ func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup,
 		StartOffset: skafka.FirstOffset,
 	})
 
-	var reader segmentioReader
+	var reader segmentioReader = r
 
 	if config.Tracing {
-		otelReader, err := otelkafka.NewReader(r)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", op, err)
-		}
-		reader = newOtel(otelReader)
-	} else {
-		reader = r
+		reader = newTracedReader(reader)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
