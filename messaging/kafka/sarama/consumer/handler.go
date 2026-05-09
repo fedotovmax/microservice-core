@@ -53,7 +53,7 @@ func newGroupHandler(
 			_, span := otel.Tracer(kafka.TracerName).Start(msgCtx, kafka.TraceConsumerHandleMark,
 				trace.WithSpanKind(trace.SpanKindConsumer),
 				trace.WithAttributes(
-					semconv.MessagingSystemKey.String("kafka"),
+					semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
 					semconv.MessagingDestinationName(msg.Topic),
 					semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset, 10)),
 					semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key)),

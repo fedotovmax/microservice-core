@@ -101,7 +101,7 @@ func (c *group) handle(ctx context.Context, onSetup kafka.OnSetup, onCleanUp kaf
 			_, span := c.tracer.Start(msgCtx, kafka.TraceConsumerHandleMark,
 				trace.WithSpanKind(trace.SpanKindConsumer),
 				trace.WithAttributes(
-					semconv.MessagingSystemKey.String("kafka"),
+					semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
 					semconv.MessagingDestinationName(msg.Topic),
 					semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset, 10)),
 					semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key)),

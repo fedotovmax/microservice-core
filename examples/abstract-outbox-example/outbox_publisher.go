@@ -12,32 +12,6 @@ type PublisherAdapter struct {
 	kafka.AsyncProducer
 }
 
-func kafkaHeadersToOutbox(kh []kafka.Header) []outbox.Header {
-	outboxHeaders := make([]outbox.Header, 0, len(kh))
-
-	for _, h := range kh {
-		outboxHeaders = append(outboxHeaders, outbox.Header{
-			Key:   h.Key,
-			Value: h.Value,
-		})
-	}
-
-	return outboxHeaders
-}
-
-func outboxHeadersToKafka(oh []outbox.Header) []kafka.Header {
-	kafkaHeaders := make([]kafka.Header, 0, len(oh))
-
-	for _, h := range oh {
-		kafkaHeaders = append(kafkaHeaders, kafka.Header{
-			Key:   h.Key,
-			Value: h.Value,
-		})
-	}
-
-	return kafkaHeaders
-}
-
 func (p *PublisherAdapter) HandleErrors(timeout time.Duration, onError outbox.OnError) {
 
 	p.AsyncProducer.HandleErrors(
@@ -50,7 +24,7 @@ func (p *PublisherAdapter) HandleErrors(timeout time.Duration, onError outbox.On
 						event.Message().Key(),
 						event.Message().Topic(),
 						event.Message().Payload(),
-						kafkaHeadersToOutbox(event.Message().Headers()),
+						outbox.HeadersFromKafka(event.Message().Headers()),
 						event.Message().Meta(),
 					),
 					event.Error(),
@@ -60,18 +34,18 @@ func (p *PublisherAdapter) HandleErrors(timeout time.Duration, onError outbox.On
 	)
 }
 
-func (p *PublisherAdapter) HandleSuccesses(timeout time.Duration, OnSuccess outbox.OnSuccess) {
+func (p *PublisherAdapter) HandleSuccesses(timeout time.Duration, onSuccess outbox.OnSuccess) {
 
 	p.AsyncProducer.HandleSuccesses(
 		timeout,
 		func(ctx context.Context, event kafka.Message) error {
-			return OnSuccess(
+			return onSuccess(
 				ctx,
 				outbox.NewEvent(
 					event.Key(),
 					event.Topic(),
 					event.Payload(),
-					kafkaHeadersToOutbox(event.Headers()),
+					outbox.HeadersFromKafka(event.Headers()),
 					event.Meta(),
 				),
 			)
@@ -82,6 +56,6 @@ func (p *PublisherAdapter) HandleSuccesses(timeout time.Duration, OnSuccess outb
 func (p *PublisherAdapter) Send(ctx context.Context, ev outbox.Event) error {
 	return p.AsyncProducer.Send(
 		ctx,
-		kafka.NewMessage(ev.RoutingKey(), ev.Destination(), ev.Payload(), outboxHeadersToKafka(ev.Headers()), ev.InternalMeta()),
+		kafka.NewMessage(ev.RoutingKey(), ev.Destination(), ev.Payload(), outbox.HeadersToKafka(ev.Headers()), ev.InternalMeta()),
 	)
 }

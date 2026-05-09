@@ -50,7 +50,7 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 				fmt.Sprintf("%s process", ev.Topic()),
 				trace.WithSpanKind(trace.SpanKindConsumer),
 				trace.WithAttributes(
-					semconv.MessagingSystemKey.String("kafka"),
+					semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
 					semconv.MessagingDestinationName(ev.Topic()),
 					semconv.MessagingMessageIDKey.String(strconv.FormatInt(ev.Offset(), 10)),
 					semconv.MessagingKafkaMessageKeyKey.String(string(ev.Key())),
