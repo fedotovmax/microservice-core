@@ -79,7 +79,7 @@ func defaultGroupConfig() GroupConfig {
 	return GroupConfig{
 		BackoffMaxInterval: 25 * time.Second,
 		BackoffMinInterval: 1 * time.Second,
-		CommitInterval:     10 * time.Second,
+		CommitInterval:     3 * time.Second,
 		MaxProcessingTime:  10 * time.Second,
 		DialTimeout:        5 * time.Second,
 		ReadTimeout:        10 * time.Second,

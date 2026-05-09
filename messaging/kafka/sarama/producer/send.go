@@ -29,13 +29,13 @@ func (p *producer) Send(ctx context.Context, event kafka.Message) error {
 	// 2. Если трейсинг включен — дорабатываем сообщение
 	if p.tracer != nil {
 		spanAttrs := []attribute.KeyValue{
-			semconv.MessagingSystemKey.String("kafka"),
+			semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
 			semconv.MessagingDestinationName(event.Topic()),
 			semconv.MessagingKafkaMessageKeyKey.String(string(event.Key())),
 		}
 
 		for _, h := range event.Headers() {
-			spanAttrs = append(spanAttrs, attribute.String("messaging.kafka.header."+string(h.Key), string(h.Value)))
+			spanAttrs = append(spanAttrs, attribute.String(kafka.TraceHeaderKey(string(h.Key)), string(h.Value)))
 		}
 
 		var span trace.Span
@@ -48,9 +48,9 @@ func (p *producer) Send(ctx context.Context, event kafka.Message) error {
 		otel.GetTextMapPropagator().Inject(ctx, saramaMsgCarrier{msg: msg})
 
 		// 4. Перезаписываем поле Metadata на нашу матрешку
-		msg.Metadata = spanWrapper{
-			original: event.Meta(),
-			span:     span,
+		msg.Metadata = kafka.SpanMetaWrapper{
+			Original: event.Meta(),
+			Span:     span,
 		}
 	}
 
@@ -58,10 +58,10 @@ func (p *producer) Send(ctx context.Context, event kafka.Message) error {
 	select {
 	case <-ctx.Done():
 		if p.tracer != nil {
-			if wrapper, ok := msg.Metadata.(spanWrapper); ok {
-				wrapper.span.RecordError(ctx.Err())
-				wrapper.span.SetStatus(codes.Error, ctx.Err().Error())
-				wrapper.span.End()
+			if wrapper, ok := msg.Metadata.(kafka.SpanMetaWrapper); ok {
+				wrapper.Span.RecordError(ctx.Err())
+				wrapper.Span.SetStatus(codes.Error, ctx.Err().Error())
+				wrapper.Span.End()
 			}
 		}
 		return fmt.Errorf("%s: cannot send event with key: %s; context is done: %w", op, event.Key(), ctx.Err())

@@ -7,23 +7,20 @@ import (
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	skafka "github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
-
-type segmentioReader interface {
-	FetchMessage(ctx context.Context) (skafka.Message, error)
-	CommitMessages(ctx context.Context, msgs ...skafka.Message) error
-	Close() error
-}
 
 type group struct {
 	log         logger.Logger
-	reader      segmentioReader
+	reader      *skafka.Reader
 	isStopped   chan struct{}
 	errCh       chan error
 	stopCtx     context.Context
 	stopCtxFunc func()
 	config      kafka.GroupConfig
 	stopOnce    sync.Once
+	tracer      trace.Tracer
 }
 
 func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup, error) {
@@ -45,21 +42,22 @@ func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup,
 		StartOffset: skafka.FirstOffset,
 	})
 
-	var reader segmentioReader = r
-
-	if config.Tracing {
-		reader = newTracedReader(reader)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &group{
+	c := &group{
 		log:         log,
-		reader:      reader,
+		reader:      r,
 		isStopped:   make(chan struct{}),
 		errCh:       make(chan error, 128),
 		stopCtx:     ctx,
 		stopCtxFunc: cancel,
 		config:      config,
-	}, nil
+	}
+
+	if config.Tracing {
+
+		c.tracer = otel.Tracer(kafka.TracerName)
+	}
+
+	return c, nil
 }

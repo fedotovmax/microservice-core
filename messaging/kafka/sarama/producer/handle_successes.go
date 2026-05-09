@@ -9,6 +9,7 @@ import (
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	"github.com/fedotovmax/microservice-core/messaging/kafka/sarama"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSuccess) {
@@ -18,15 +19,20 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 	for msg := range p.ap.Successes() {
 		meta := msg.Metadata
 
-		// Распаковываем спан и оригинальную метадату
-		if wrapper, ok := meta.(spanWrapper); ok {
-			meta = wrapper.original
+		traceCtx := context.Background()
 
-			wrapper.span.SetAttributes(
+		// Распаковываем спан и оригинальную метадату
+		if wrapper, ok := meta.(kafka.SpanMetaWrapper); ok {
+			meta = wrapper.Original
+
+			wrapper.Span.SetAttributes(
 				semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset, 10)),
 				semconv.MessagingKafkaDestinationPartitionKey.Int64(int64(msg.Partition)),
 			)
-			wrapper.span.End() // Успешно закрываем спан!
+
+			traceCtx = trace.ContextWithSpan(context.Background(), wrapper.Span)
+
+			wrapper.Span.End() // Успешно закрываем спан!
 		}
 
 		successMsg, err := sarama.NewMessageFromProducer(msg, meta)
@@ -36,13 +42,13 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 			continue
 		}
 
-		if err := p.handleSuccess(successMsg, timeout, onSuccess); err != nil {
+		if err := p.handleSuccess(traceCtx, successMsg, timeout, onSuccess); err != nil {
 			log.Error("error when call onSuccess callback", logger.Err(err))
 		}
 	}
 }
-func (p *producer) handleSuccess(e kafka.Message, timeout time.Duration, onSuccess kafka.OnSuccess) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func (p *producer) handleSuccess(ctx context.Context, e kafka.Message, timeout time.Duration, onSuccess kafka.OnSuccess) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return onSuccess(ctx, e)
 }

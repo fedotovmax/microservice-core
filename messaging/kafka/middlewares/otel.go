@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
+	"github.com/fedotovmax/microservice-core/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -63,10 +64,10 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 
 				for _, h := range headers {
 					key := string(h.Key)
-					if key == "traceparent" {
+					if key == observability.TraceParent {
 						continue
 					}
-					attrKey := "messaging.kafka.header." + key
+					attrKey := kafka.TraceHeaderKey(key)
 					headerAttrs = append(headerAttrs, attribute.String(attrKey, string(h.Value)))
 				}
 				span.SetAttributes(headerAttrs...)

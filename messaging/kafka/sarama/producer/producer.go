@@ -47,14 +47,14 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 
 	ap, err := sarama.NewAsyncProducer(config.Brokers, saramaConfig)
 
+	if err != nil {
+		return nil, fmt.Errorf("%s: error when create async producer instance: %w", op, err)
+	}
+
 	p := &producer{ap: ap, log: log}
 
 	if config.Tracing {
 		p.tracer = otel.Tracer(kafka.TracerName)
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("%s: error when create async producer instance: %w", op, err)
 	}
 
 	return p, nil

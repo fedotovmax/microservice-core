@@ -1,28 +1,24 @@
 package producer
 
 import (
-	"context"
-
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	skafka "github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
-type segmentioWriter interface {
-	WriteMessages(ctx context.Context, msgs ...skafka.Message) error
-	Close() error
-}
-
 type errMessage struct {
-	skafka.Message
-	Error error
+	Msg skafka.Message
+	Err error
 }
 
 type producer struct {
-	w         segmentioWriter
+	w         *skafka.Writer
 	log       logger.Logger
 	successCh chan skafka.Message
 	errCh     chan errMessage // В segmentio ошибка лежит внутри Message при использовании Completion
+	tracer    trace.Tracer
 }
 
 func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, error) {
@@ -53,8 +49,8 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 					// или обернув сообщение.
 					// Но проще всего передать её через кастомный механизм.
 					em := errMessage{
-						Message: m,
-						Error:   err,
+						Msg: m,
+						Err: err,
 					}
 					errCh <- em
 				} else {
@@ -64,16 +60,16 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 		},
 	}
 
-	var writer segmentioWriter = w
-
-	if config.Tracing {
-		writer = newTracedWriter(w)
-	}
-
-	return &producer{
-		w:         writer,
+	p := &producer{
+		w:         w,
 		log:       log,
 		successCh: successCh,
 		errCh:     errCh,
-	}, nil
+	}
+
+	if config.Tracing {
+		p.tracer = otel.Tracer(kafka.TracerName)
+	}
+
+	return p, nil
 }

@@ -2,7 +2,6 @@ package producer
 
 import (
 	"github.com/IBM/sarama"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // Идеальный адаптер без явных разыменований указателей
@@ -21,7 +20,3 @@ func (c saramaMsgCarrier) Set(k, v string) {
 func (c saramaMsgCarrier) Keys() []string { return nil }
 
 // Обертка для метадаты, чтобы пронести спан сквозь асинхронные каналы
-type spanWrapper struct {
-	original interface{}
-	span     trace.Span
-}

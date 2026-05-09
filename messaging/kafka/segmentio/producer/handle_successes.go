@@ -2,11 +2,14 @@ package producer
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	"github.com/fedotovmax/microservice-core/messaging/kafka/segmentio"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSuccess) {
@@ -15,17 +18,34 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 
 	log := p.log.With(logger.String("op", op))
 
-	for m := range p.successCh {
+	for msg := range p.successCh {
+
+		meta := msg.WriterData
+
+		traceCtx := context.Background()
+
+		if wrapper, ok := meta.(kafka.SpanMetaWrapper); ok {
+			meta = wrapper.Original
+
+			wrapper.Span.SetAttributes(
+				semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset, 10)),
+				semconv.MessagingKafkaDestinationPartitionKey.Int64(int64(msg.Partition)),
+			)
+
+			traceCtx = trace.ContextWithSpan(context.Background(), wrapper.Span)
+
+			wrapper.Span.End() // Успешно закрываем спан!
+		}
 
 		successMsg := kafka.NewMessage(
-			string(m.Key),
-			m.Topic,
-			m.Value,
-			segmentio.HeadersFromSegmentio(m.Headers),
-			m.WriterData,
+			string(msg.Key),
+			msg.Topic,
+			msg.Value,
+			segmentio.HeadersFromSegmentio(msg.Headers),
+			meta,
 		)
 
-		err := p.handleSuccess(successMsg, timeout, onSuccess)
+		err := p.handleSuccess(traceCtx, successMsg, timeout, onSuccess)
 
 		if err != nil {
 			log.Error("error when call onSuccess callback", logger.Err(err))
@@ -34,8 +54,8 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 	}
 }
 
-func (p *producer) handleSuccess(e kafka.Message, timeout time.Duration, onSuccess kafka.OnSuccess) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func (p *producer) handleSuccess(ctx context.Context, e kafka.Message, timeout time.Duration, onSuccess kafka.OnSuccess) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return onSuccess(ctx, e)
 }
