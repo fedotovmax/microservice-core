@@ -3,6 +3,7 @@ package producer
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	"github.com/fedotovmax/microservice-core/messaging/kafka/segmentio"
@@ -25,8 +26,10 @@ func (p *producer) Send(ctx context.Context, kmsg kafka.Message) error {
 		Headers:    segmentio.HeadersToSegmentio(kmsg.Headers()),
 	}
 
+	withTracer := p.withTracer()
+
 	// 2. Если трейсинг включен — дорабатываем сообщение
-	if p.tracer != nil {
+	if withTracer {
 		spanAttrs := []attribute.KeyValue{
 			semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
 			semconv.MessagingDestinationName(kmsg.Topic()),
@@ -47,21 +50,23 @@ func (p *producer) Send(ctx context.Context, kmsg kafka.Message) error {
 		otel.GetTextMapPropagator().Inject(ctx, msgWriterCarrier{msg: &smsg})
 
 		// 4. Перезаписываем поле Metadata на нашу матрешку
-		smsg.WriterData = kafka.SpanMetaWrapper{
-			Original: kmsg.Meta(),
-			Span:     span,
+		smsg.WriterData = kafka.TelemetryMetaWrapper{
+			Original:  kmsg.Meta(),
+			Span:      span,
+			StartTime: time.Now(),
 		}
 	}
 
 	// WriteMessages в Async режиме не блокируется дольше, чем нужно на запись в буфер
 	err := p.w.WriteMessages(ctx, smsg)
 	if err != nil {
-		if p.tracer != nil {
-			if wrapper, ok := smsg.WriterData.(kafka.SpanMetaWrapper); ok {
-				wrapper.Span.RecordError(ctx.Err())
-				wrapper.Span.SetStatus(codes.Error, ctx.Err().Error())
+		if withTracer {
+			if wrapper, ok := smsg.WriterData.(kafka.TelemetryMetaWrapper); ok {
+				wrapper.Span.RecordError(err)
+				wrapper.Span.SetStatus(codes.Error, err.Error())
 				wrapper.Span.End()
 			}
+
 		}
 
 		return fmt.Errorf("%s: error writing message: %w", op, err)

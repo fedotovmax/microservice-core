@@ -1,6 +1,8 @@
 package producer
 
 import (
+	"fmt"
+
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	skafka "github.com/segmentio/kafka-go"
@@ -19,6 +21,7 @@ type producer struct {
 	successCh chan skafka.Message
 	errCh     chan errMessage // В segmentio ошибка лежит внутри Message при использовании Completion
 	tracer    trace.Tracer
+	metrics   *kafka.ProducerMetrics
 }
 
 func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, error) {
@@ -29,16 +32,17 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 	errCh := make(chan errMessage, config.ChannelBufferSize)
 
 	w := &skafka.Writer{
-		Addr:            skafka.TCP(config.Brokers...),
-		Balancer:        &skafka.Hash{},
-		RequiredAcks:    skafka.RequiredAcks(int(skafka.RequireAll)), // WaitForAll
-		MaxAttempts:     config.SendMaxRetries,
-		WriteBackoffMin: config.RetryBackoff,
-		BatchSize:       config.BatchMessagesCount,
-		BatchBytes:      int64(config.BatchBytes),
-		BatchTimeout:    config.BatchFrequency,
-		Compression:     skafka.Snappy,
-		Async:           true, // Позволяет Send не блокироваться
+		Addr:                   skafka.TCP(config.Brokers...),
+		Balancer:               &skafka.Hash{},
+		RequiredAcks:           skafka.RequiredAcks(int(skafka.RequireAll)), // WaitForAll
+		MaxAttempts:            config.SendMaxRetries,
+		WriteBackoffMin:        config.RetryBackoff,
+		BatchSize:              config.BatchMessagesCount,
+		BatchBytes:             int64(config.BatchBytes),
+		AllowAutoTopicCreation: true,
+		BatchTimeout:           config.BatchFrequency,
+		Compression:            skafka.Snappy,
+		Async:                  true, // Позволяет Send не блокироваться
 		// Completion срабатывает на каждое сообщение после попытки записи
 		Completion: func(messages []skafka.Message, err error) {
 			for _, m := range messages {
@@ -67,9 +71,22 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 		errCh:     errCh,
 	}
 
-	if config.Tracing {
+	if config.Telemetry {
 		p.tracer = otel.Tracer(kafka.TracerName)
+		metrics, err := kafka.NewProducerMetrics()
+		if err != nil {
+			return nil, fmt.Errorf("%s: failed to init metrics: %w", op, err)
+		}
+		p.metrics = metrics
 	}
 
 	return p, nil
+}
+
+func (p *producer) withMetrics() bool {
+	return p.metrics != nil
+}
+
+func (p *producer) withTracer() bool {
+	return p.tracer != nil
 }

@@ -3,7 +3,6 @@ package consumer
 import (
 	"context"
 	"errors"
-	"strconv"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -11,12 +10,9 @@ import (
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	"github.com/fedotovmax/microservice-core/messaging/kafka/middlewares"
 	coreSarama "github.com/fedotovmax/microservice-core/messaging/kafka/sarama"
-	"github.com/fedotovmax/microservice-core/observability"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-	"go.opentelemetry.io/otel/trace"
 )
+
+type onMarkFunc func(msg *sarama.ConsumerMessage, metadata string)
 
 type groupHandler struct {
 	handler           kafka.MessageHandler
@@ -24,14 +20,15 @@ type groupHandler struct {
 	onSetup           kafka.OnSetup
 	maxProcessingTime time.Duration
 	log               logger.Logger
-	onMark            func(msg *sarama.ConsumerMessage, metadata string)
+	onMark            onMarkFunc
+	metrics           *kafka.ConsumerMetrics
 }
 
 func newGroupHandler(
 	log logger.Logger,
 	p kafka.ConsumerGroupStartReadParams,
 	maxProcTime time.Duration,
-	tracing bool,
+	telemetry bool,
 ) sarama.ConsumerGroupHandler {
 
 	h := p.MessageHandler
@@ -41,39 +38,20 @@ func newGroupHandler(
 		h = p.Middlewares[i](h)
 	}
 
-	var onMark func(msg *sarama.ConsumerMessage, metadata string)
+	var onMark onMarkFunc
+
+	var metrics *kafka.ConsumerMetrics
 
 	// 2. Оборачиваем в НАШ трейсинг (он будет самым внешним и первым перехватит контекст)
-	if tracing {
-
+	if telemetry {
 		h = middlewares.ConsumerTracingMiddleware()(h)
 
-		onMark = func(msg *sarama.ConsumerMessage, metadata string) {
-			msgCtx := otel.GetTextMapPropagator().Extract(context.Background(), msgSaramaCarrier(msg.Headers))
-			_, span := otel.Tracer(kafka.TracerName).Start(msgCtx, kafka.TraceConsumerHandleMark,
-				trace.WithSpanKind(trace.SpanKindConsumer),
-				trace.WithAttributes(
-					semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
-					semconv.MessagingDestinationName(msg.Topic),
-					semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset, 10)),
-					semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key)),
-					semconv.MessagingKafkaDestinationPartitionKey.Int64(int64(msg.Partition)),
-				),
-			)
-			if len(msg.Headers) > 0 {
-				headerAttrs := make([]attribute.KeyValue, 0, len(msg.Headers))
+		onMark = createOnMark()
 
-				for _, h := range msg.Headers {
-					key := string(h.Key)
-					if key == observability.TraceParent {
-						continue
-					}
-					attrKey := kafka.TraceHeaderKey(key)
-					headerAttrs = append(headerAttrs, attribute.String(attrKey, string(h.Value)))
-				}
-				span.SetAttributes(headerAttrs...)
-			}
-			span.End()
+		var err error
+		metrics, err = kafka.NewConsumerMetrics()
+		if err != nil {
+			log.Error("failed to init consumer metrics", logger.Err(err))
 		}
 	}
 
@@ -84,8 +62,8 @@ func newGroupHandler(
 		maxProcessingTime: maxProcTime,
 		log:               log,
 		onMark:            onMark,
+		metrics:           metrics,
 	}
-
 }
 
 func (h *groupHandler) Setup(s sarama.ConsumerGroupSession) error {
@@ -118,10 +96,12 @@ func (h *groupHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.Cons
 		s.MarkMessage(msg, info)
 	}
 
+	ctx := s.Context()
+
 	for {
 		select {
 
-		case <-s.Context().Done():
+		case <-ctx.Done():
 
 			log.Warn("session context is done, stopping messages handling")
 			return nil
@@ -137,7 +117,7 @@ func (h *groupHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.Cons
 
 			ev := kafka.NewConsumeMessage(payload, msg.Key, msg.Offset, msg.Topic, msg.Partition, coreSarama.HeadersFromPtrSarama(msg.Headers))
 
-			if err := h.handle(s.Context(), ev); err != nil {
+			if err := h.handle(ctx, ev); err != nil {
 				if noRetryErr, ok := errors.AsType[*kafka.NoRetryError](err); ok {
 					markMessage(msg, noRetryErr.Reason)
 					continue
@@ -145,7 +125,6 @@ func (h *groupHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.Cons
 				log.Error("an unexpected error was received while processing the message", logger.Err(err))
 				continue
 			}
-
 			markMessage(msg, "")
 		}
 	}
@@ -155,5 +134,4 @@ func (h *groupHandler) handle(ctx context.Context, ev kafka.ConsumeMessage) erro
 	readctx, cancel := context.WithTimeout(ctx, h.maxProcessingTime)
 	defer cancel()
 	return h.handler(readctx, ev)
-
 }

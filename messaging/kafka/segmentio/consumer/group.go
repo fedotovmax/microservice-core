@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/fedotovmax/microservice-core/logger"
@@ -21,6 +22,7 @@ type group struct {
 	config      kafka.GroupConfig
 	stopOnce    sync.Once
 	tracer      trace.Tracer
+	metrics     *kafka.ConsumerInfraMetrics
 }
 
 func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup, error) {
@@ -37,7 +39,6 @@ func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup,
 		ReadBatchTimeout: config.ReadTimeout,
 		SessionTimeout:   config.SessionTimeout,
 		RebalanceTimeout: config.RebalanceTimeout,
-		CommitInterval:   config.CommitInterval,
 
 		StartOffset: skafka.FirstOffset,
 	})
@@ -54,10 +55,19 @@ func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup,
 		config:      config,
 	}
 
-	if config.Tracing {
-
+	if config.Telemetry {
 		c.tracer = otel.Tracer(kafka.TracerName)
+		metrics, err := kafka.NewConsumerInfraMetrics()
+
+		if err != nil {
+			return nil, fmt.Errorf("%s: failed to init metrics: %w", op, err)
+		}
+		c.metrics = metrics
 	}
 
 	return c, nil
+}
+
+func (c *group) withMetrics() bool {
+	return c.metrics != nil
 }

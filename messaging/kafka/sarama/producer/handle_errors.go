@@ -15,13 +15,15 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 	const op = "core.messaging.kafka.sarama.producer.HandleErrors"
 	log := p.log.With(logger.String("op", op))
 
+	withMetrics := p.withMetrics()
+
 	for msg := range p.ap.Errors() {
 		meta := msg.Msg.Metadata
 
 		traceCtx := context.Background()
 
 		// Распаковываем спан, фиксируем ошибку брокера и закрываем
-		if wrapper, ok := meta.(kafka.SpanMetaWrapper); ok {
+		if wrapper, ok := meta.(kafka.TelemetryMetaWrapper); ok {
 			meta = wrapper.Original
 			wrapper.Span.RecordError(msg.Err)
 			wrapper.Span.SetStatus(codes.Error, msg.Err.Error())
@@ -29,6 +31,13 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 			traceCtx = trace.ContextWithSpan(context.Background(), wrapper.Span)
 
 			wrapper.Span.End()
+			if withMetrics {
+				p.metrics.RecordDuration(traceCtx, msg.Msg.Topic, float64(time.Since(wrapper.StartTime).Milliseconds()))
+			}
+		}
+
+		if withMetrics {
+			p.metrics.RecordError(traceCtx, msg.Msg.Topic)
 		}
 
 		failedMsg, err := sarama.NewFailedMessageFromProducer(msg, meta)

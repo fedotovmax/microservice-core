@@ -24,53 +24,122 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
+
+type metadata struct {
+	EventID   string
+	EventType string
+}
 
 const (
 	topicName = "test-topic"
 	timeout   = 5 * time.Second
 )
 
-func initTracer() func(context.Context) error {
-	exporter, _ := otlptracehttp.New(context.Background(), otlptracehttp.WithInsecure(), otlptracehttp.WithEndpoint("localhost:4318"))
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceNameKey.String("my-service"))),
+func initTelemetry(ctx context.Context) (func(context.Context) error, error) {
+
+	res := resource.NewWithAttributes(semconv.SchemaURL,
+		semconv.ServiceNameKey.String("my-service"),
 	)
+
+	// Трейсы
+	traceExporter, err := otlptracehttp.New(ctx,
+		otlptracehttp.WithInsecure(),
+		otlptracehttp.WithEndpoint("localhost:4318"),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(traceExporter),
+		sdktrace.WithResource(res),
+	)
+
+	// Метрики
+	metricExporter, err := otlpmetrichttp.New(ctx,
+		otlpmetrichttp.WithInsecure(),
+		otlpmetrichttp.WithEndpoint("localhost:4318"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	mp := sdkmetric.NewMeterProvider(
+		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter,
+			sdkmetric.WithInterval(15*time.Second),
+		)),
+		sdkmetric.WithResource(res),
+	)
+
 	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	return tp.Shutdown
+	otel.SetMeterProvider(mp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+
+	return func(ctx context.Context) error {
+		if err := tp.Shutdown(ctx); err != nil {
+			return err
+		}
+		return mp.Shutdown(ctx)
+	}, nil
 }
 
 func main() {
+
+	appCtx := context.Background()
+
 	// 1. Инициализация логгера и трейсера
 	log, err := zap.New(zap.NewConfigMust())
 	if err != nil {
 		panic(err)
 	}
 
-	shutdownTracer := initTracer()
-	defer shutdownTracer(context.Background())
+	shutdownTelemetry, err := initTelemetry(appCtx)
+
+	if err != nil {
+		panic(err)
+	}
 
 	// 2. Инициализация Продюсера
-	producerCfg := kafka.NewProducerConfigMust([]string{"localhost:9092"}, kafka.WithProducerTracing(true))
+	producerCfg := kafka.NewProducerConfigMust([]string{"localhost:9092"}, kafka.WithProducerTelemetry(true))
 	prod, err := producer.New(log, producerCfg)
 	if err != nil {
 		panic(err)
 	}
 
 	// Запускаем твои обработчики каналов в фоне
-	go prod.HandleSuccesses(timeout, func(ctx context.Context, e kafka.SuccessMessage) error {
-		log.Info(fmt.Sprintf("Message delivered! Meta: %v", e.Meta()))
+	go prod.HandleSuccesses(timeout, func(ctx context.Context, e kafka.Message) error {
+
+		if metadata, ok := e.Meta().(metadata); ok {
+			log.Info("message delivered", logger.String("event_id", metadata.EventID), logger.String("event_type", metadata.EventType))
+		}
+
+		ctx, span := otel.Tracer("handle-on-producer-send-success").Start(ctx, "update-db-after-success")
+
+		defer span.End()
+
 		return nil
 	})
 	go prod.HandleErrors(timeout, func(ctx context.Context, e kafka.FailedMessage) error {
-		log.Error("Message failed", logger.Err(err))
+		if metadata, ok := e.Message().Meta().(metadata); ok {
+			log.Info("message failed", logger.String("event_id", metadata.EventID), logger.String("event_type", metadata.EventType))
+		}
+
+		ctx, span := otel.Tracer("handle-on-producer-send-failed").Start(ctx, "update-db-after-failed")
+
+		defer span.End()
 		return nil
 	})
 
 	// 3. Инициализация Консюмера
-	groupCfg := kafka.NewGroupConfigMust([]string{"localhost:9092"}, []string{topicName}, "test-group", kafka.WithGroupTracing(true))
+	groupCfg := kafka.NewGroupConfigMust([]string{"localhost:9092"}, []string{topicName}, "test-group", kafka.WithGroupTelemetry(true))
 	consumerGroup, err := consumer.NewGroup(log, groupCfg)
 	if err != nil {
 		panic(err)
@@ -80,7 +149,7 @@ func main() {
 	consumerGroup.Start(kafka.ConsumerGroupStartReadParams{
 		MessageHandler: func(ctx context.Context, ev kafka.ConsumeMessage) error {
 			// Дочерний спан для проверки проброса контекста
-			ctx, span := otel.Tracer("consumer.handler").Start(ctx, "process_business_logic")
+			ctx, span := otel.Tracer("consumer.handler").Start(ctx, "process-business-logic")
 			defer span.End()
 
 			log.Info(fmt.Sprintf("Consumed message: %s", string(ev.Payload())))
@@ -121,7 +190,7 @@ func main() {
 				topicName,                    // topic
 				[]byte(`{"action": "test"}`), // payload
 				customHeaders,                // твои []Header (или nil, если заголовков нет)
-				"my-meta-data",               // meta (WriterData)
+				metadata{EventID: "event-id-456", EventType: "test-event"}, // meta (WriterData)
 			)
 
 			// Отправляем через твой метод Send
@@ -159,19 +228,32 @@ func main() {
 
 	err = srv.Stop(stopCtx)
 	if err != nil {
-		log.Error(err.Error())
+		log.Error("http server stop", logger.Err(err))
+	} else {
+		log.Info("http server stopped")
 	}
+
 	err = consumerGroup.Stop(stopCtx)
 	if err != nil {
-		log.Error(err.Error())
+		log.Error("consumer group stop", logger.Err(err))
+	} else {
+		log.Info("consumer group stopped")
 	}
-	log.Info("consumerGroup stopped")
+
 	err = prod.Stop(stopCtx)
 	if err != nil {
-		log.Error(err.Error())
+		log.Error("producer stop", logger.Err(err))
+	} else {
+		log.Info("producer stopped")
 	}
-	log.Info("prod stopped")
 
-	// Для консюмера, если у тебя есть метод Stop, тоже вызови здесь
+	err = shutdownTelemetry(stopCtx)
+	if err != nil {
+		log.Error("telemetry stop", logger.Err(err))
+	} else {
+		log.Info("telemetry closed")
+	}
+
 }
+
 ```

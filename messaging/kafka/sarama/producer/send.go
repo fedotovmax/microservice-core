@@ -3,6 +3,7 @@ package producer
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
@@ -26,8 +27,10 @@ func (p *producer) Send(ctx context.Context, event kafka.Message) error {
 		Metadata: event.Meta(), // Пока кладем оригинальную метадату
 	}
 
+	withTracer := p.withTracer()
+
 	// 2. Если трейсинг включен — дорабатываем сообщение
-	if p.tracer != nil {
+	if withTracer {
 		spanAttrs := []attribute.KeyValue{
 			semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
 			semconv.MessagingDestinationName(event.Topic()),
@@ -48,17 +51,18 @@ func (p *producer) Send(ctx context.Context, event kafka.Message) error {
 		otel.GetTextMapPropagator().Inject(ctx, saramaMsgCarrier{msg: msg})
 
 		// 4. Перезаписываем поле Metadata на нашу матрешку
-		msg.Metadata = kafka.SpanMetaWrapper{
-			Original: event.Meta(),
-			Span:     span,
+		msg.Metadata = kafka.TelemetryMetaWrapper{
+			Original:  event.Meta(),
+			Span:      span,
+			StartTime: time.Now(),
 		}
 	}
 
 	// Отправляем в канал...
 	select {
 	case <-ctx.Done():
-		if p.tracer != nil {
-			if wrapper, ok := msg.Metadata.(kafka.SpanMetaWrapper); ok {
+		if withTracer {
+			if wrapper, ok := msg.Metadata.(kafka.TelemetryMetaWrapper); ok {
 				wrapper.Span.RecordError(ctx.Err())
 				wrapper.Span.SetStatus(codes.Error, ctx.Err().Error())
 				wrapper.Span.End()

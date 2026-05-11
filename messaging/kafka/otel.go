@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/trace"
 )
@@ -22,7 +23,11 @@ func TraceHeaderKey(key string) string {
 	return "messaging.kafka.header." + strings.ToLower(key)
 }
 
-type SpanMetaWrapper struct {
-	Original interface{}
-	Span     trace.Span
+type TelemetryMetaWrapper struct {
+	Original  interface{}
+	Span      trace.Span
+	StartTime time.Time
 }
+
+const ConsumerMeterName = "kafka.consumer"
+const ProducerMeterName = "kafka.producer"

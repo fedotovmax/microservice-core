@@ -15,7 +15,7 @@ func (c *group) Start(p kafka.ConsumerGroupStartReadParams, onConsumeError kafka
 		h = p.Middlewares[i](h)
 	}
 
-	if c.config.Tracing {
+	if c.config.Telemetry {
 		h = middlewares.ConsumerTracingMiddleware()(h)
 	}
 

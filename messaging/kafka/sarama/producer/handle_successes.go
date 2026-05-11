@@ -16,13 +16,15 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 	const op = "core.messaging.kafka.sarama.producer.HandleSuccesses"
 	log := p.log.With(logger.String("op", op))
 
+	withMetrics := p.withMetrics()
+
 	for msg := range p.ap.Successes() {
 		meta := msg.Metadata
 
 		traceCtx := context.Background()
 
 		// Распаковываем спан и оригинальную метадату
-		if wrapper, ok := meta.(kafka.SpanMetaWrapper); ok {
+		if wrapper, ok := meta.(kafka.TelemetryMetaWrapper); ok {
 			meta = wrapper.Original
 
 			wrapper.Span.SetAttributes(
@@ -33,6 +35,13 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 			traceCtx = trace.ContextWithSpan(context.Background(), wrapper.Span)
 
 			wrapper.Span.End() // Успешно закрываем спан!
+			if withMetrics {
+				p.metrics.RecordDuration(traceCtx, msg.Topic, float64(time.Since(wrapper.StartTime).Milliseconds()))
+			}
+		}
+
+		if withMetrics {
+			p.metrics.RecordSent(traceCtx, msg.Topic)
 		}
 
 		successMsg, err := sarama.NewMessageFromProducer(msg, meta)

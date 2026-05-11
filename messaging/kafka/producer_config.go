@@ -45,9 +45,9 @@ func WithBatchMessagesCount(n int) ProducerOption {
 	}
 }
 
-func WithProducerTracing(f bool) ProducerOption {
+func WithProducerTelemetry(f bool) ProducerOption {
 	return func(c *ProducerConfig) {
-		c.Tracing = f
+		c.Telemetry = f
 	}
 }
 
@@ -59,7 +59,7 @@ func defaultProducerConfig() ProducerConfig {
 		BatchFrequency:     100 * time.Millisecond,
 		BatchBytes:         1048576, // 1MB
 		BatchMessagesCount: 100,
-		Tracing:            false,
+		Telemetry:          false,
 	}
 }
 
@@ -104,7 +104,7 @@ type ProducerConfig struct {
 	// Если в Outbox лимит 100, а тут 300, Sarama будет ждать 3 итерации Outbox или таймаута Frequency.
 	BatchMessagesCount int
 
-	Tracing bool
+	Telemetry bool
 }
 
 func (c *ProducerConfig) Validate() error {

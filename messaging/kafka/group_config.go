@@ -69,9 +69,9 @@ func WithMaxWaitTime(d time.Duration) GroupOption {
 	}
 }
 
-func WithGroupTracing(f bool) GroupOption {
+func WithGroupTelemetry(f bool) GroupOption {
 	return func(c *GroupConfig) {
-		c.Tracing = f
+		c.Telemetry = f
 	}
 }
 
@@ -87,7 +87,7 @@ func defaultGroupConfig() GroupConfig {
 		HeartbeatInterval:  3 * time.Second,
 		RebalanceTimeout:   60 * time.Second,
 		MaxWaitTime:        500 * time.Millisecond,
-		Tracing:            false,
+		Telemetry:          false,
 	}
 }
 
@@ -141,7 +141,7 @@ type GroupConfig struct {
 	// MaxWaitTime only for sarama, do not provide if use segmentio
 	MaxWaitTime time.Duration
 
-	Tracing bool
+	Telemetry bool
 }
 
 func (c *GroupConfig) Validate() error {

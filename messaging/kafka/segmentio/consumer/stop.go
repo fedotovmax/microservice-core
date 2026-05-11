@@ -10,10 +10,7 @@ func (c *group) Stop(ctx context.Context) error {
 	var closeErr error
 
 	c.stopOnce.Do(func() {
-		// 1. Сигналим циклу Start остановиться
 		c.stopCtxFunc()
-
-		// 2. Закрываем ридер (прерывает сетевые ожидания)
 		closeErr = c.reader.Close()
 	})
 

@@ -11,9 +11,10 @@ import (
 )
 
 type producer struct {
-	ap     sarama.AsyncProducer
-	log    logger.Logger
-	tracer trace.Tracer
+	ap      sarama.AsyncProducer
+	log     logger.Logger
+	tracer  trace.Tracer
+	metrics *kafka.ProducerMetrics
 }
 
 func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, error) {
@@ -53,10 +54,23 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 
 	p := &producer{ap: ap, log: log}
 
-	if config.Tracing {
+	if config.Telemetry {
 		p.tracer = otel.Tracer(kafka.TracerName)
+		metrics, err := kafka.NewProducerMetrics()
+		if err != nil {
+			return nil, fmt.Errorf("%s: failed to init metrics: %w", op, err)
+		}
+		p.metrics = metrics
 	}
 
 	return p, nil
 
+}
+
+func (p *producer) withMetrics() bool {
+	return p.metrics != nil
+}
+
+func (p *producer) withTracer() bool {
+	return p.tracer != nil
 }

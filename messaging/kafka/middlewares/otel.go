@@ -2,11 +2,13 @@ package middlewares
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
-	"github.com/fedotovmax/microservice-core/observability"
+	"github.com/fedotovmax/microservice-core/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -37,9 +39,15 @@ func (c consumerHandlerHeadersCarrier) Keys() []string {
 
 func ConsumerTracingMiddleware() kafka.Middleware {
 	return func(next kafka.MessageHandler) kafka.MessageHandler {
-		return func(ctx context.Context, ev kafka.ConsumeMessage) error {
+
+		metrics, err := kafka.NewConsumerMetrics()
+		if err != nil {
+			metrics = nil
+		}
+
+		return func(ctx context.Context, msg kafka.ConsumeMessage) error {
 			// 1. Извлекаем контекст продюсера из заголовков
-			headers := ev.Headers()
+			headers := msg.Headers()
 
 			carrier := consumerHandlerHeadersCarrier(headers)
 			extractedCtx := otel.GetTextMapPropagator().Extract(ctx, carrier)
@@ -47,14 +55,14 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 			// 2. Создаем спан обработки сообщения
 			ctxWithSpan, span := otel.Tracer(kafka.TracerName).Start(
 				extractedCtx,
-				fmt.Sprintf("%s process", ev.Topic()),
+				fmt.Sprintf("%s process", msg.Topic()),
 				trace.WithSpanKind(trace.SpanKindConsumer),
 				trace.WithAttributes(
 					semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
-					semconv.MessagingDestinationName(ev.Topic()),
-					semconv.MessagingMessageIDKey.String(strconv.FormatInt(ev.Offset(), 10)),
-					semconv.MessagingKafkaMessageKeyKey.String(string(ev.Key())),
-					semconv.MessagingKafkaDestinationPartitionKey.Int64(int64(ev.Partition())),
+					semconv.MessagingDestinationName(msg.Topic()),
+					semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset(), 10)),
+					semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key())),
+					semconv.MessagingKafkaDestinationPartitionKey.Int64(int64(msg.Partition())),
 				),
 			)
 			defer span.End()
@@ -64,7 +72,7 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 
 				for _, h := range headers {
 					key := string(h.Key)
-					if key == observability.TraceParent {
+					if key == telemetry.TraceParent {
 						continue
 					}
 					attrKey := kafka.TraceHeaderKey(key)
@@ -74,15 +82,33 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 			}
 
 			// 3. Вызываем бизнес-логику с новым контекстом
-			err := next(ctxWithSpan, ev)
+			start := time.Now()
+			err := next(ctxWithSpan, msg)
+			elapsed := float64(time.Since(start).Milliseconds())
 
 			// 4. Если бизнес-логика вернула ошибку, красим спан в красный
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
+
+				if metrics != nil {
+					metrics.RecordProcessingTime(ctx, msg.Topic(), elapsed)
+					if _, ok := errors.AsType[*kafka.NoRetryError](err); ok {
+						metrics.RecordProcessed(ctx, msg.Topic())
+					} else {
+						metrics.RecordHandlerError(ctx, msg.Topic())
+					}
+				}
+
+				return err
 			}
 
-			return err
+			if metrics != nil {
+				metrics.RecordProcessingTime(ctx, msg.Topic(), elapsed)
+				metrics.RecordProcessed(ctx, msg.Topic())
+			}
+
+			return nil
 		}
 	}
 }
