@@ -55,7 +55,7 @@ func defaultProducerConfig() ProducerConfig {
 	return ProducerConfig{
 		ChannelBufferSize:  256,
 		SendMaxRetries:     3,
-		RetryBackoff:       100 * time.Millisecond,
+		RetryBackoff:       time.Millisecond * 300,
 		BatchFrequency:     100 * time.Millisecond,
 		BatchBytes:         1048576, // 1MB
 		BatchMessagesCount: 100,

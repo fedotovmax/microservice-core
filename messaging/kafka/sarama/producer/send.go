@@ -15,44 +15,44 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func (p *producer) Send(ctx context.Context, event kafka.Message) error {
+func (p *producer) Send(ctx context.Context, msg kafka.Message) error {
 	const op = "core.messaging.kafka.sarama.producer.Send"
 
 	// 1. Сразу собираем базовое сообщение с твоими заголовками
-	msg := &sarama.ProducerMessage{
-		Topic:    event.Topic(),
-		Key:      sarama.StringEncoder(event.Key()),
-		Value:    sarama.ByteEncoder(event.Payload()),
-		Headers:  coreSarama.HeadersToSarama(event.Headers()),
-		Metadata: event.Meta(), // Пока кладем оригинальную метадату
+	smsg := &sarama.ProducerMessage{
+		Topic:    msg.Topic(),
+		Key:      sarama.StringEncoder(msg.Key()),
+		Value:    sarama.ByteEncoder(msg.Payload()),
+		Headers:  coreSarama.HeadersToSarama(msg.Headers()),
+		Metadata: msg.Meta(), // Пока кладем оригинальную метадату
 	}
 
-	withTracer := p.withTracer()
+	withTracing := p.withTracing()
 
 	// 2. Если трейсинг включен — дорабатываем сообщение
-	if withTracer {
+	if withTracing {
 		spanAttrs := []attribute.KeyValue{
 			semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
-			semconv.MessagingDestinationName(event.Topic()),
-			semconv.MessagingKafkaMessageKeyKey.String(string(event.Key())),
+			semconv.MessagingDestinationName(msg.Topic()),
+			semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key())),
 		}
 
-		for _, h := range event.Headers() {
+		for _, h := range msg.Headers() {
 			spanAttrs = append(spanAttrs, attribute.String(kafka.TraceHeaderKey(string(h.Key)), string(h.Value)))
 		}
 
 		var span trace.Span
-		ctx, span = p.tracer.Start(ctx, event.Topic()+" send",
+		ctx, span = p.tracer.Start(ctx, kafka.TraceProducerSendTopic(msg.Topic()),
 			trace.WithSpanKind(trace.SpanKindProducer),
 			trace.WithAttributes(spanAttrs...),
 		)
 
 		// 3. Инжектим прямо в структуру сообщения!
-		otel.GetTextMapPropagator().Inject(ctx, saramaMsgCarrier{msg: msg})
+		otel.GetTextMapPropagator().Inject(ctx, saramaMsgCarrier{msg: smsg})
 
 		// 4. Перезаписываем поле Metadata на нашу матрешку
-		msg.Metadata = kafka.TelemetryMetaWrapper{
-			Original:  event.Meta(),
+		smsg.Metadata = kafka.TelemetryMetaWrapper{
+			Original:  msg.Meta(),
 			Span:      span,
 			StartTime: time.Now(),
 		}
@@ -61,16 +61,16 @@ func (p *producer) Send(ctx context.Context, event kafka.Message) error {
 	// Отправляем в канал...
 	select {
 	case <-ctx.Done():
-		if withTracer {
-			if wrapper, ok := msg.Metadata.(kafka.TelemetryMetaWrapper); ok {
+		if withTracing {
+			if wrapper, ok := smsg.Metadata.(kafka.TelemetryMetaWrapper); ok {
 				wrapper.Span.RecordError(ctx.Err())
 				wrapper.Span.SetStatus(codes.Error, ctx.Err().Error())
 				wrapper.Span.End()
 			}
 		}
-		return fmt.Errorf("%s: cannot send event with key: %s; context is done: %w", op, event.Key(), ctx.Err())
+		return fmt.Errorf("%s: cannot send event with key: %s; context is done: %w", op, msg.Key(), ctx.Err())
 
-	case p.ap.Input() <- msg:
+	case p.ap.Input() <- smsg:
 		return nil
 	}
 }

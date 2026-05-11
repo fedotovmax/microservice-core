@@ -85,7 +85,7 @@ func defaultGroupConfig() GroupConfig {
 		ReadTimeout:        10 * time.Second,
 		SessionTimeout:     30 * time.Second,
 		HeartbeatInterval:  3 * time.Second,
-		RebalanceTimeout:   60 * time.Second,
+		RebalanceTimeout:   20 * time.Second,
 		MaxWaitTime:        500 * time.Millisecond,
 		Telemetry:          false,
 	}

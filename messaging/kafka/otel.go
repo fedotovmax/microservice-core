@@ -7,16 +7,36 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const TracerName = "kafka"
+const TelemetryKafka = "kafka"
 
 const TraceSystemKey = "kafka"
 
-const TraceConsumerHandleMark = TraceSystemKey + " " + "mark"
+const TelemetryConsumer = "consumer"
+const TelemetryConsumerHandler = TelemetryConsumer + "." + "handler"
+const TelemetryProducer = "producer"
 
-const TraceConsumerHandler = "consumer.handler"
+const PlatformTelemetryProducer = TelemetryKafka + "." + TelemetryProducer
+const PlatformTelemetryConsumerHandler = TelemetryKafka + "." + TelemetryConsumerHandler
+const PlatformTelemetryConsumer = TelemetryKafka + "." + TelemetryConsumer
+
+func TraceConsumerBusinessLogic(name string) string {
+	return PlatformTelemetryConsumerHandler + " business logic : " + name
+}
+
+func TraceConsumerHandleMark(topic string) string {
+	return PlatformTelemetryConsumerHandler + " mark: " + topic
+}
+
+func TraceConsumeTopic(topic string) string {
+	return PlatformTelemetryConsumerHandler + " consume: " + topic
+}
+
+func TraceProducerBusinessLogic(name string) string {
+	return PlatformTelemetryProducer + " business logic : " + name
+}
 
 func TraceProducerSendTopic(topic string) string {
-	return topic + " send"
+	return PlatformTelemetryProducer + " send to: " + topic
 }
 
 func TraceHeaderKey(key string) string {
@@ -29,5 +49,5 @@ type TelemetryMetaWrapper struct {
 	StartTime time.Time
 }
 
-const ConsumerMeterName = "kafka.consumer"
-const ProducerMeterName = "kafka.producer"
+const ConsumerMeterName = TelemetryKafka + "." + TelemetryConsumer
+const ProducerMeterName = TelemetryKafka + "." + TelemetryProducer

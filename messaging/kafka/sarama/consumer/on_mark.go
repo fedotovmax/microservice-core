@@ -16,7 +16,11 @@ import (
 func createOnMark() onMarkFunc {
 	return func(msg *sarama.ConsumerMessage, metadata string) {
 		msgCtx := otel.GetTextMapPropagator().Extract(context.Background(), msgSaramaCarrier(msg.Headers))
-		_, span := otel.Tracer(kafka.TracerName).Start(msgCtx, kafka.TraceConsumerHandleMark,
+
+		_, span := telemetry.StartPlatformSpan(
+			msgCtx,
+			kafka.PlatformTelemetryConsumer,
+			kafka.TraceConsumerHandleMark(msg.Topic),
 			trace.WithSpanKind(trace.SpanKindConsumer),
 			trace.WithAttributes(
 				semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
@@ -26,6 +30,7 @@ func createOnMark() onMarkFunc {
 				semconv.MessagingKafkaDestinationPartitionKey.Int64(int64(msg.Partition)),
 			),
 		)
+
 		if len(msg.Headers) > 0 {
 			headerAttrs := make([]attribute.KeyValue, 0, len(msg.Headers))
 

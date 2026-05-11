@@ -14,8 +14,7 @@ func WithOnStartErrorHandlersTimeout(t time.Duration) Option {
 }
 
 type Config struct {
-	Addr string
-	//TODO: use pattern optional config
+	Addr                        string
 	OnStartErrorHandlersTimeout time.Duration
 }
 

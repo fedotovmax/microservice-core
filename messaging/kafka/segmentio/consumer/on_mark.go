@@ -17,7 +17,10 @@ func createOnMark(ctx context.Context, tracer trace.Tracer) onMarkFunc {
 	return func(msg skafka.Message) {
 		if tracer != nil {
 			msgCtx := otel.GetTextMapPropagator().Extract(ctx, msgReaderCarrier(msg.Headers))
-			_, span := tracer.Start(msgCtx, kafka.TraceConsumerHandleMark,
+
+			_, span := tracer.Start(
+				msgCtx,
+				kafka.TraceConsumerHandleMark(msg.Topic),
 				trace.WithSpanKind(trace.SpanKindConsumer),
 				trace.WithAttributes(
 					semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
@@ -25,8 +28,8 @@ func createOnMark(ctx context.Context, tracer trace.Tracer) onMarkFunc {
 					semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset, 10)),
 					semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key)),
 					semconv.MessagingKafkaDestinationPartitionKey.Int64(int64(msg.Partition)),
-				),
-			)
+				))
+
 			if len(msg.Headers) > 0 {
 				headerAttrs := make([]attribute.KeyValue, 0, len(msg.Headers))
 

@@ -3,7 +3,6 @@ package middlewares
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -53,9 +52,11 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 			extractedCtx := otel.GetTextMapPropagator().Extract(ctx, carrier)
 
 			// 2. Создаем спан обработки сообщения
-			ctxWithSpan, span := otel.Tracer(kafka.TracerName).Start(
+
+			ctxWithSpan, span := telemetry.StartPlatformSpan(
 				extractedCtx,
-				fmt.Sprintf("%s process", msg.Topic()),
+				kafka.PlatformTelemetryConsumerHandler,
+				kafka.TraceConsumeTopic(msg.Topic()),
 				trace.WithSpanKind(trace.SpanKindConsumer),
 				trace.WithAttributes(
 					semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
@@ -63,8 +64,8 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 					semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset(), 10)),
 					semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key())),
 					semconv.MessagingKafkaDestinationPartitionKey.Int64(int64(msg.Partition())),
-				),
-			)
+				))
+
 			defer span.End()
 
 			if len(headers) > 0 {

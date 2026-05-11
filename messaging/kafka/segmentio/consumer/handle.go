@@ -53,6 +53,7 @@ func (c *group) handle(ctx context.Context, onSetup kafka.OnSetup, onCleanUp kaf
 
 		// Блокирующее чтение из Kafka
 		msg, err := c.reader.FetchMessage(ctx)
+
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return

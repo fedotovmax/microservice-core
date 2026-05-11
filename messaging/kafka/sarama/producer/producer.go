@@ -6,7 +6,7 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
-	"go.opentelemetry.io/otel"
+	"github.com/fedotovmax/microservice-core/telemetry"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -55,7 +55,7 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 	p := &producer{ap: ap, log: log}
 
 	if config.Telemetry {
-		p.tracer = otel.Tracer(kafka.TracerName)
+		p.tracer = telemetry.CreatePlatformTrace(kafka.PlatformTelemetryProducer)
 		metrics, err := kafka.NewProducerMetrics()
 		if err != nil {
 			return nil, fmt.Errorf("%s: failed to init metrics: %w", op, err)
@@ -71,6 +71,6 @@ func (p *producer) withMetrics() bool {
 	return p.metrics != nil
 }
 
-func (p *producer) withTracer() bool {
+func (p *producer) withTracing() bool {
 	return p.tracer != nil
 }

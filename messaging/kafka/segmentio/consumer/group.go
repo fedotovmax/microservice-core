@@ -7,8 +7,8 @@ import (
 
 	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
+	"github.com/fedotovmax/microservice-core/telemetry"
 	skafka "github.com/segmentio/kafka-go"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -36,11 +36,12 @@ func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup,
 			Timeout: config.DialTimeout,
 		},
 
-		ReadBatchTimeout: config.ReadTimeout,
-		SessionTimeout:   config.SessionTimeout,
-		RebalanceTimeout: config.RebalanceTimeout,
-
-		StartOffset: skafka.FirstOffset,
+		ReadBatchTimeout:      config.ReadTimeout,
+		SessionTimeout:        config.SessionTimeout,
+		RebalanceTimeout:      config.RebalanceTimeout,
+		HeartbeatInterval:     config.HeartbeatInterval,
+		StartOffset:           skafka.FirstOffset,
+		WatchPartitionChanges: true,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -56,7 +57,7 @@ func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup,
 	}
 
 	if config.Telemetry {
-		c.tracer = otel.Tracer(kafka.TracerName)
+		c.tracer = telemetry.CreatePlatformTrace(kafka.PlatformTelemetryConsumer)
 		metrics, err := kafka.NewConsumerInfraMetrics()
 
 		if err != nil {
