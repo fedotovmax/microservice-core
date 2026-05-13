@@ -15,11 +15,20 @@ import (
 
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
+	"go.opentelemetry.io/otel/sdk/log"
+
+	// Правильный пакет для глобального провайдера логов:
+	"go.opentelemetry.io/otel/log/global"
 )
 
+type closeFn func(ctx context.Context) error
+
 type telemetryCloser struct {
-	StopCollectMetrics func(ctx context.Context) error
-	StopCollectTraces  func(ctx context.Context) error
+	StopCollectMetrics closeFn
+	StopCollectTraces  closeFn
+	StopCollectLogs    closeFn
 }
 
 var serviceName string
@@ -48,8 +57,16 @@ func InitTelemetry(ctx context.Context, cfg Config) (*telemetryCloser, error) {
 		return nil, err
 	}
 
+	bsp := sdktrace.NewBatchSpanProcessor(
+		traceExporter,
+		sdktrace.WithMaxQueueSize(65536),      // Храним в памяти до 65к спанов (дефолт 2048)
+		sdktrace.WithMaxExportBatchSize(4096), // Отправляем пачками по 4096 (дефолт 512)
+		// Отправляем пачку каждые 2 секунды (если не накопилось 4096)
+		sdktrace.WithBatchTimeout(2*time.Second),
+	)
+
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(traceExporter),
+		sdktrace.WithSpanProcessor(bsp),
 		sdktrace.WithResource(res),
 	)
 
@@ -57,6 +74,20 @@ func InitTelemetry(ctx context.Context, cfg Config) (*telemetryCloser, error) {
 	metricExporter, err := otlpmetrichttp.New(ctx,
 		otlpmetrichttp.WithInsecure(),
 		otlpmetrichttp.WithEndpoint(cfg.CollectorAddr),
+
+		// 1. Включаем сжатие (МАГИЯ ДЛЯ СКОРОСТИ!)
+		otlpmetrichttp.WithCompression(otlpmetrichttp.GzipCompression),
+
+		// 2. Ставим жесткий таймаут (чтобы не блокировать горутины, если коллектор тупит)
+		otlpmetrichttp.WithTimeout(5*time.Second),
+
+		// 3. (Опционально) Добавляем retry-политику, чтобы сгладить сетевые скачки
+		otlpmetrichttp.WithRetry(otlpmetrichttp.RetryConfig{
+			Enabled:         true,
+			InitialInterval: 1 * time.Second,
+			MaxInterval:     10 * time.Second,
+			MaxElapsedTime:  15 * time.Second,
+		}),
 	)
 	if err != nil {
 		return nil, err
@@ -64,10 +95,27 @@ func InitTelemetry(ctx context.Context, cfg Config) (*telemetryCloser, error) {
 
 	mp := sdkmetric.NewMeterProvider(
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(metricExporter,
-			sdkmetric.WithInterval(15*time.Second),
+			sdkmetric.WithInterval(cfg.MetricsExportInterval), // Должно быть 10s-15s минимум!
+			sdkmetric.WithTimeout(5*time.Second),              // Если сбор затянулся, прерываем
 		)),
+		sdkmetric.WithView(cfg.MetricsViews...),
 		sdkmetric.WithResource(res),
 	)
+
+	logExporter, err := otlploghttp.New(ctx,
+		otlploghttp.WithInsecure(),
+		otlploghttp.WithEndpoint(cfg.CollectorAddr),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	lp := log.NewLoggerProvider(
+		log.WithProcessor(log.NewBatchProcessor(logExporter)),
+		log.WithResource(res), // Тот же ресурс с service.name
+	)
+
+	global.SetLoggerProvider(lp)
 
 	otel.SetTracerProvider(tp)
 	otel.SetMeterProvider(mp)
@@ -86,11 +134,16 @@ func InitTelemetry(ctx context.Context, cfg Config) (*telemetryCloser, error) {
 	closer := &telemetryCloser{
 		StopCollectMetrics: mp.Shutdown,
 		StopCollectTraces:  tp.Shutdown,
+		StopCollectLogs:    lp.Shutdown,
 	}
 
 	serviceName = cfg.ServiceName
 
 	return closer, nil
+}
+
+func PlatformModule(componentName string) string {
+	return "platform." + componentName
 }
 
 func checkInit() {
@@ -101,7 +154,7 @@ func checkInit() {
 
 func CreatePlatformTrace(componentName string) trace.Tracer {
 	checkInit()
-	return createTrace("platform." + componentName)
+	return createTrace(PlatformModule(componentName))
 }
 
 func createTrace(name string) trace.Tracer {

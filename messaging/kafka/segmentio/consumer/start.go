@@ -1,32 +1,63 @@
 package consumer
 
 import (
+	"context"
+	"errors"
 	"sync"
 
+	"github.com/fedotovmax/microservice-core/logger"
 	"github.com/fedotovmax/microservice-core/messaging/kafka"
 	"github.com/fedotovmax/microservice-core/messaging/kafka/middlewares"
 )
 
 func (c *group) Start(p kafka.ConsumerGroupStartReadParams, onConsumeError kafka.OnConsumeError) {
 
-	h := p.MessageHandler
-
-	for i := len(p.Middlewares) - 1; i >= 0; i-- {
-		h = p.Middlewares[i](h)
-	}
+	p.MessageHandler = kafka.ChainMiddlewares(p.MessageHandler, p.Middlewares...)
 
 	if c.config.Telemetry {
-		h = middlewares.ConsumerTracingMiddleware()(h)
+		p.MessageHandler = middlewares.ConsumerTracingMiddleware()(p.MessageHandler)
 	}
 
+	warmupDone := make(chan struct{})
 	wg := &sync.WaitGroup{}
+
+	wg.Go(func() {
+		c.log.Info("warmup started in parallel...", logger.Any("topics", c.config.Topics))
+
+		warmupCtx, cancel := context.WithTimeout(c.stopCtx, c.config.WarmupTimeout)
+		defer cancel()
+
+		if err := waitTopicsReady(warmupCtx, c.config.Brokers, c.config.Topics); err != nil {
+			if errors.Is(err, context.Canceled) {
+				c.log.Info("startup canceled during warmup")
+			} else {
+				c.log.Error("warmup failed, signaling stop", logger.Err(err))
+			}
+
+			// Сворачиваем всю группу (остальные горутины поймают <-c.stopCtx.Done())
+			c.stopCtxFunc()
+			return
+		}
+
+		// Всё ок, открываем барьер
+		close(warmupDone)
+		c.log.Info("warmup success, barrier opened")
+	})
 
 	wg.Go(func() {
 		c.handleErrors(c.stopCtx, onConsumeError)
 	})
 
 	wg.Go(func() {
-		c.handle(c.stopCtx, p.OnSetup, p.OnCleanUp, h)
+
+		select {
+		case <-warmupDone:
+			c.handle(c.stopCtx, p.OnSetup, p.OnCleanUp, p.MessageHandler)
+		case <-c.stopCtx.Done():
+			c.log.Info("handler worker exiting: stopped before warmup completed")
+			return
+		}
+
 	})
 
 	go func() {

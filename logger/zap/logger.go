@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/fedotovmax/microservice-core/logger"
+	"github.com/fedotovmax/microservice-core/telemetry"
+	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -106,9 +108,12 @@ func initWithLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logger, 
 	consoleDebugging := zapcore.AddSync(os.Stdout)
 	fileWriter := zapcore.AddSync(logFile)
 
+	otelCore := otelzap.NewCore(telemetry.PlatformModule("logger"))
+
 	core := zapcore.NewTee(
-		zapcore.NewCore(encoder, consoleDebugging, zapLevel),
-		zapcore.NewCore(encoder, fileWriter, zapLevel),
+		&filterCtxCore{zapcore.NewCore(encoder, consoleDebugging, zapLevel)},
+		&filterCtxCore{zapcore.NewCore(encoder, fileWriter, zapLevel)},
+		otelCore,
 	)
 
 	l := zap.New(core)
@@ -132,7 +137,12 @@ func initWithoutLogFolder(config Config, zapLevel zap.AtomicLevel) (logger.Logge
 
 	consoleDebugging := zapcore.AddSync(os.Stdout)
 
-	core := zapcore.NewTee(zapcore.NewCore(encoder, consoleDebugging, zapLevel))
+	otelCore := otelzap.NewCore(telemetry.PlatformModule("logger"))
+
+	core := zapcore.NewTee(
+		&filterCtxCore{zapcore.NewCore(encoder, consoleDebugging, zapLevel)},
+		otelCore,
+	)
 
 	l := zap.New(core)
 

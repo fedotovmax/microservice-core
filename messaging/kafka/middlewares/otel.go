@@ -55,7 +55,7 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 
 			ctxWithSpan, span := telemetry.StartPlatformSpan(
 				extractedCtx,
-				kafka.PlatformTelemetryConsumerHandler,
+				kafka.PlatformTelemetryConsumer,
 				kafka.TraceConsumeTopic(msg.Topic()),
 				trace.WithSpanKind(trace.SpanKindConsumer),
 				trace.WithAttributes(
@@ -85,30 +85,28 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 			// 3. Вызываем бизнес-логику с новым контекстом
 			start := time.Now()
 			err := next(ctxWithSpan, msg)
-			elapsed := float64(time.Since(start).Milliseconds())
+			elapsedSeconds := time.Since(start).Seconds() // Секунды вместо миллисекунд
+
+			status := kafka.MetricsConsumerHandlerStatusSuccess
+			errType := kafka.MetricsConsumerHandlerErrorNone
 
 			// 4. Если бизнес-логика вернула ошибку, красим спан в красный
 			if err != nil {
+				status = kafka.MetricsConsumerHandlerStatusError
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
 
-				if metrics != nil {
-					metrics.RecordProcessingTime(ctx, msg.Topic(), elapsed)
-					if _, ok := errors.AsType[*kafka.NoRetryError](err); ok {
-						metrics.RecordProcessed(ctx, msg.Topic())
-					} else {
-						metrics.RecordHandlerError(ctx, msg.Topic())
-					}
+				if _, ok := errors.AsType[*kafka.NoRetryError](err); ok {
+					errType = kafka.MetricsConsumerHandlerErrorNoRetry
+				} else {
+					errType = kafka.MetricsConsumerHandlerErrorRetryable
 				}
-
-				return err
 			}
 
 			if metrics != nil {
-				metrics.RecordProcessingTime(ctx, msg.Topic(), elapsed)
-				metrics.RecordProcessed(ctx, msg.Topic())
+				metrics.RecordMessage(ctxWithSpan, msg.Topic(), status, errType)
+				metrics.RecordProcessingTime(ctxWithSpan, msg.Topic(), elapsedSeconds)
 			}
-
 			return nil
 		}
 	}

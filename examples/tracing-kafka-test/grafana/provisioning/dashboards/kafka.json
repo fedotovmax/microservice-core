@@ -1,0 +1,406 @@
+{
+	"uid": "kafka-overview",
+	"title": "Kafka Service Overview",
+	"tags": ["kafka"],
+	"timezone": "browser",
+	"schemaVersion": 38,
+	"refresh": "30s",
+	"time": {
+		"from": "now-1h",
+		"to": "now"
+	},
+	"panels": [
+		{
+			"id": 1,
+			"title": "Consumer Messages / sec",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 0,
+				"y": 0,
+				"w": 12,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "rate(kafka_consumer_messages_total{status=\"success\"}[$__rate_interval])",
+					"legendFormat": "success {{topic}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				},
+				{
+					"expr": "rate(kafka_consumer_messages_total{status=\"error\"}[$__rate_interval])",
+					"legendFormat": "error {{topic}} {{error_type}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"color": {
+						"mode": "palette-classic"
+					}
+				}
+			}
+		},
+		{
+			"id": 2,
+			"title": "Producer Messages / sec",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 12,
+				"y": 0,
+				"w": 12,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "rate(kafka_producer_messages_total{status=\"success\"}[$__rate_interval])",
+					"legendFormat": "success {{topic}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				},
+				{
+					"expr": "rate(kafka_producer_messages_total{status=\"error\"}[$__rate_interval])",
+					"legendFormat": "error {{topic}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"color": {
+						"mode": "palette-classic"
+					}
+				}
+			}
+		},
+		{
+			"id": 3,
+			"title": "Consumer Processing Duration (p50 / p99)",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 0,
+				"y": 8,
+				"w": 12,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "histogram_quantile(0.99, rate(kafka_consumer_processing_duration_seconds_bucket[$__rate_interval]))",
+					"legendFormat": "p99 {{topic}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				},
+				{
+					"expr": "histogram_quantile(0.50, rate(kafka_consumer_processing_duration_seconds_bucket[$__rate_interval]))",
+					"legendFormat": "p50 {{topic}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "s",
+					"color": {
+						"mode": "palette-classic"
+					}
+				}
+			}
+		},
+		{
+			"id": 4,
+			"title": "Producer Send Duration (p50 / p99)",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 12,
+				"y": 8,
+				"w": 12,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "histogram_quantile(0.99, rate(kafka_producer_send_duration_seconds_bucket[$__rate_interval]))",
+					"legendFormat": "p99 {{topic}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				},
+				{
+					"expr": "histogram_quantile(0.50, rate(kafka_producer_send_duration_seconds_bucket[$__rate_interval]))",
+					"legendFormat": "p50 {{topic}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "s",
+					"color": {
+						"mode": "palette-classic"
+					}
+				}
+			}
+		},
+		{
+			"id": 5,
+			"title": "Consumer Error Breakdown",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 0,
+				"y": 16,
+				"w": 12,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "rate(kafka_consumer_messages_total{status=\"error\", error_type=\"no_retry\"}[$__rate_interval])",
+					"legendFormat": "no_retry {{topic}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				},
+				{
+					"expr": "rate(kafka_consumer_messages_total{status=\"error\", error_type=\"retryable\"}[$__rate_interval])",
+					"legendFormat": "retryable {{topic}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"color": {
+						"mode": "palette-classic"
+					}
+				}
+			}
+		},
+		{
+			"id": 6,
+			"title": "Consumer Infra Errors / sec",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 12,
+				"y": 16,
+				"w": 12,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "rate(kafka_consumer_fetch_errors_total[$__rate_interval])",
+					"legendFormat": "fetch errors",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				},
+				{
+					"expr": "rate(kafka_consumer_commit_errors_total[$__rate_interval])",
+					"legendFormat": "commit errors",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"color": {
+						"mode": "fixed",
+						"fixedColor": "orange"
+					}
+				}
+			}
+		},
+		{
+			"id": 7,
+			"title": "Goroutines",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 0,
+				"y": 24,
+				"w": 8,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "go_goroutine_count",
+					"legendFormat": "goroutines",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "short",
+					"color": {
+						"mode": "fixed",
+						"fixedColor": "blue"
+					}
+				}
+			}
+		},
+		{
+			"id": 8,
+			"title": "Memory Used",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 8,
+				"y": 24,
+				"w": 8,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "go_memory_used_bytes",
+					"legendFormat": "memory used",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "bytes",
+					"color": {
+						"mode": "fixed",
+						"fixedColor": "green"
+					}
+				}
+			}
+		},
+		{
+			"id": 10,
+			"title": "HTTP Request Duration (p50 / p99)",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 0,
+				"y": 32,
+				"w": 12,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "histogram_quantile(0.99, rate(http_server_request_duration_seconds_bucket[$__rate_interval]))",
+					"legendFormat": "p99 {{http_route}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				},
+				{
+					"expr": "histogram_quantile(0.50, rate(http_server_request_duration_seconds_bucket[$__rate_interval]))",
+					"legendFormat": "p50 {{http_route}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "s",
+					"color": {
+						"mode": "palette-classic"
+					}
+				}
+			}
+		},
+		{
+			"id": 11,
+			"title": "HTTP Requests / sec",
+			"type": "timeseries",
+			"gridPos": {
+				"x": 12,
+				"y": 32,
+				"w": 12,
+				"h": 8
+			},
+			"datasource": {
+				"type": "prometheus",
+				"uid": "prometheus-uid"
+			},
+			"targets": [
+				{
+					"expr": "rate(http_server_request_duration_seconds_count[$__rate_interval])",
+					"legendFormat": "{{http_route}} {{http_response_status_code}}",
+					"datasource": {
+						"type": "prometheus",
+						"uid": "prometheus-uid"
+					}
+				}
+			],
+			"fieldConfig": {
+				"defaults": {
+					"unit": "reqps",
+					"color": {
+						"mode": "palette-classic"
+					}
+				}
+			}
+		}
+	],
+	"templating": {
+		"list": []
+	}
+}

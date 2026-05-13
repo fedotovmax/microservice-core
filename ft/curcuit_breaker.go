@@ -40,6 +40,10 @@ type CBSettings struct {
 	OnStateChange    func(from, to State)
 }
 
+type CircuitBreaker interface {
+	Execute(op func() error) (err error)
+}
+
 type circuitBreaker struct {
 	settings CBSettings
 	mu       sync.Mutex

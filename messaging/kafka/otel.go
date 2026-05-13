@@ -7,47 +7,45 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const TelemetryKafka = "kafka"
+// Системные константы для OTel
+const (
+	TraceSystemKey = "kafka"
+	TelemetryKafka = "kafka"
+)
 
-const TraceSystemKey = "kafka"
+const (
+	PlatformTelemetryProducer = TelemetryKafka + ".producer"
+	PlatformTelemetryConsumer = TelemetryKafka + ".consumer"
+)
 
-const TelemetryConsumer = "consumer"
-const TelemetryConsumerHandler = TelemetryConsumer + "." + "handler"
-const TelemetryProducer = "producer"
+// Хелперы для имен спанов (теперь без дублирования префиксов)
+// Мы не пишем "kafka.consumer", так как это уже есть в имени трейсера
 
-const PlatformTelemetryProducer = TelemetryKafka + "." + TelemetryProducer
-const PlatformTelemetryConsumerHandler = TelemetryKafka + "." + TelemetryConsumerHandler
-const PlatformTelemetryConsumer = TelemetryKafka + "." + TelemetryConsumer
-
-func TraceConsumerBusinessLogic(name string) string {
-	return PlatformTelemetryConsumerHandler + " business logic : " + name
+func TraceConsumeTopic(topic string) string {
+	return "consume: " + topic
 }
 
 func TraceConsumerHandleMark(topic string) string {
-	return PlatformTelemetryConsumerHandler + " mark: " + topic
+	return "mark: " + topic
 }
 
-func TraceConsumeTopic(topic string) string {
-	return PlatformTelemetryConsumerHandler + " consume: " + topic
-}
-
-func TraceProducerBusinessLogic(name string) string {
-	return PlatformTelemetryProducer + " business logic : " + name
+func TraceBusinessLogic(name string) string {
+	return "business logic: " + name
 }
 
 func TraceProducerSendTopic(topic string) string {
-	return PlatformTelemetryProducer + " send to: " + topic
+	return "send to: " + topic
 }
 
+// Утилиты для атрибутов
 func TraceHeaderKey(key string) string {
 	return "messaging.kafka.header." + strings.ToLower(key)
 }
 
+// TelemetryMetaWrapper используется для проброса контекста
+// и таймингов в асинхронных операциях (например, в Producer.Completion)
 type TelemetryMetaWrapper struct {
 	Original  interface{}
 	Span      trace.Span
 	StartTime time.Time
 }
-
-const ConsumerMeterName = TelemetryKafka + "." + TelemetryConsumer
-const ProducerMeterName = TelemetryKafka + "." + TelemetryProducer

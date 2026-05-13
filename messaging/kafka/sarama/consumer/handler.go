@@ -31,12 +31,7 @@ func newGroupHandler(
 	telemetry bool,
 ) sarama.ConsumerGroupHandler {
 
-	h := p.MessageHandler
-
-	// 1. Применяем пользовательские мидлвари (накручиваем внутренние слои)
-	for i := len(p.Middlewares) - 1; i >= 0; i-- {
-		h = p.Middlewares[i](h)
-	}
+	p.MessageHandler = kafka.ChainMiddlewares(p.MessageHandler, p.Middlewares...)
 
 	var onMark onMarkFunc
 
@@ -44,7 +39,8 @@ func newGroupHandler(
 
 	// 2. Оборачиваем в НАШ трейсинг (он будет самым внешним и первым перехватит контекст)
 	if telemetry {
-		h = middlewares.ConsumerTracingMiddleware()(h)
+
+		p.MessageHandler = middlewares.ConsumerTracingMiddleware()(p.MessageHandler)
 
 		onMark = createOnMark()
 
@@ -56,7 +52,7 @@ func newGroupHandler(
 	}
 
 	return &groupHandler{
-		handler:           h,
+		handler:           p.MessageHandler,
 		onCleanUp:         p.OnCleanUp,
 		onSetup:           p.OnSetup,
 		maxProcessingTime: maxProcTime,
@@ -83,6 +79,7 @@ func (h *groupHandler) Cleanup(s sarama.ConsumerGroupSession) error {
 	return nil
 }
 
+// TODO: use metrics for something...
 func (h *groupHandler) ConsumeClaim(s sarama.ConsumerGroupSession, c sarama.ConsumerGroupClaim) error {
 
 	const op = "core.messaging.kafka.sarama.consumer.groupHandler.ConsumeClaim"

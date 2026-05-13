@@ -35,15 +35,13 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 			)
 
 			traceCtx = trace.ContextWithSpan(context.Background(), wrapper.Span)
+			durationSeconds := time.Since(wrapper.StartTime).Seconds()
 
-			wrapper.Span.End() // Успешно закрываем спан!
 			if withMetrics {
-				p.metrics.RecordDuration(traceCtx, msg.Topic, float64(time.Since(wrapper.StartTime).Milliseconds()))
+				p.metrics.RecordDuration(traceCtx, msg.Topic, durationSeconds)
+				p.metrics.RecordMessage(traceCtx, msg.Topic, kafka.MetricsConsumerHandlerStatusSuccess)
 			}
-		}
-
-		if withMetrics {
-			p.metrics.RecordSent(traceCtx, msg.Topic)
+			wrapper.Span.End() // Успешно закрываем спан!
 		}
 
 		successMsg := kafka.NewMessage(

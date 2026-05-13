@@ -33,15 +33,14 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 			)
 
 			traceCtx = trace.ContextWithSpan(context.Background(), wrapper.Span)
+			durationSeconds := time.Since(wrapper.StartTime).Seconds()
+
+			if withMetrics {
+				p.metrics.RecordDuration(traceCtx, msg.Topic, durationSeconds)
+				p.metrics.RecordMessage(traceCtx, msg.Topic, kafka.MetricsConsumerHandlerStatusSuccess)
+			}
 
 			wrapper.Span.End() // Успешно закрываем спан!
-			if withMetrics {
-				p.metrics.RecordDuration(traceCtx, msg.Topic, float64(time.Since(wrapper.StartTime).Milliseconds()))
-			}
-		}
-
-		if withMetrics {
-			p.metrics.RecordSent(traceCtx, msg.Topic)
 		}
 
 		successMsg, err := sarama.NewMessageFromProducer(msg, meta)

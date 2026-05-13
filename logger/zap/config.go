@@ -48,9 +48,9 @@ func NewConfig(opts ...Option) (Config, error) {
 	return cfg, nil
 }
 
-func NewConfigMust() Config {
+func NewConfigMust(opts ...Option) Config {
 
-	config, err := NewConfig()
+	config, err := NewConfig(opts...)
 
 	if err != nil {
 		panic(err)

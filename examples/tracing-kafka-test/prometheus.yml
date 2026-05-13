@@ -1,5 +1,8 @@
-scrape_configs:
+global:
+  scrape_interval: 5s     # Собираем данные каждые 5 секунд
+  evaluation_interval: 5s
 
+scrape_configs:
   - job_name: prometheus
     static_configs:
     - targets: ["localhost:9090"]

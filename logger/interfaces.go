@@ -1,6 +1,9 @@
 package logger
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Field — универсальная структура для передачи данных в лог
 type Field struct {
@@ -31,6 +34,7 @@ type Logger interface {
 	Warn(msg string, fields ...Field)
 	With(f ...Field) Logger
 	SetLevel(level string) error
+	Ctx(ctx context.Context) Logger
 	Stop()
 }
 

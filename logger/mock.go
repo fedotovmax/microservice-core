@@ -1,5 +1,7 @@
 package logger
 
+import "context"
+
 type Mock struct{}
 
 func NewMock() *Mock {
@@ -16,5 +18,9 @@ func (n *Mock) SetLevel(level string) error {
 }
 
 func (n *Mock) With(f ...Field) Logger {
+	return n
+}
+
+func (n *Mock) Ctx(ctx context.Context) Logger {
 	return n
 }

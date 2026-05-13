@@ -32,16 +32,17 @@ func New(log logger.Logger, config kafka.ProducerConfig) (kafka.AsyncProducer, e
 	errCh := make(chan errMessage, config.ChannelBufferSize)
 
 	w := &skafka.Writer{
-		Addr:            skafka.TCP(config.Brokers...),
-		Balancer:        &skafka.Hash{},
-		RequiredAcks:    skafka.RequiredAcks(int(skafka.RequireAll)), // WaitForAll
-		MaxAttempts:     config.SendMaxRetries,
-		WriteBackoffMin: config.RetryBackoff,
-		BatchSize:       config.BatchMessagesCount,
-		BatchBytes:      int64(config.BatchBytes),
-		BatchTimeout:    config.BatchFrequency,
-		Compression:     skafka.Snappy,
-		Async:           true, // Позволяет Send не блокироваться
+		Addr:                   skafka.TCP(config.Brokers...),
+		Balancer:               &skafka.Hash{},
+		RequiredAcks:           skafka.RequiredAcks(int(skafka.RequireAll)), // WaitForAll
+		MaxAttempts:            config.SendMaxRetries,
+		WriteBackoffMin:        config.RetryBackoff,
+		BatchSize:              config.BatchMessagesCount,
+		BatchBytes:             int64(config.BatchBytes),
+		BatchTimeout:           config.BatchFrequency,
+		Compression:            skafka.Snappy,
+		AllowAutoTopicCreation: true,
+		Async:                  true, // Позволяет Send не блокироваться
 
 		// Completion срабатывает на каждое сообщение после попытки записи
 		Completion: func(messages []skafka.Message, err error) {

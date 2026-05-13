@@ -26,6 +26,7 @@ type group struct {
 }
 
 func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup, error) {
+
 	const op = "core.messaging.kafka.segmentio.consumer.NewGroup"
 
 	r := skafka.NewReader(skafka.ReaderConfig{
@@ -44,15 +45,15 @@ func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup,
 		WatchPartitionChanges: true,
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	stopCtx, stopCtxFunc := context.WithCancel(context.Background())
 
 	c := &group{
 		log:         log,
 		reader:      r,
 		isStopped:   make(chan struct{}),
 		errCh:       make(chan error, 128),
-		stopCtx:     ctx,
-		stopCtxFunc: cancel,
+		stopCtx:     stopCtx,
+		stopCtxFunc: stopCtxFunc,
 		config:      config,
 	}
 

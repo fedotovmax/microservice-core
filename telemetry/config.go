@@ -3,6 +3,8 @@ package telemetry
 import (
 	"fmt"
 	"time"
+
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
 type ConfigOption func(*Config)
@@ -19,11 +21,18 @@ func WithServiceVersion(v string) ConfigOption {
 	}
 }
 
+func WithMetricsViews(views ...sdkmetric.View) ConfigOption {
+	return func(c *Config) {
+		c.MetricsViews = views
+	}
+}
+
 type Config struct {
 	ServiceName           string
 	ServiceVersion        string
 	CollectorAddr         string
 	MetricsExportInterval time.Duration
+	MetricsViews          []sdkmetric.View
 }
 
 func (c *Config) Validate() error {

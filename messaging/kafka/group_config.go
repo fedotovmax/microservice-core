@@ -75,6 +75,12 @@ func WithGroupTelemetry(f bool) GroupOption {
 	}
 }
 
+func WithWarmupTimeout(d time.Duration) GroupOption {
+	return func(c *GroupConfig) {
+		c.WarmupTimeout = d
+	}
+}
+
 func defaultGroupConfig() GroupConfig {
 	return GroupConfig{
 		BackoffMaxInterval: 25 * time.Second,
@@ -88,6 +94,7 @@ func defaultGroupConfig() GroupConfig {
 		RebalanceTimeout:   20 * time.Second,
 		MaxWaitTime:        500 * time.Millisecond,
 		Telemetry:          false,
+		WarmupTimeout:      90 * time.Second,
 	}
 }
 
@@ -142,6 +149,8 @@ type GroupConfig struct {
 	MaxWaitTime time.Duration
 
 	Telemetry bool
+
+	WarmupTimeout time.Duration
 }
 
 func (c *GroupConfig) Validate() error {
@@ -215,6 +224,10 @@ func (c *GroupConfig) Validate() error {
 	}
 	if c.ReadTimeout < time.Second {
 		return fmt.Errorf("%s: read timeout must be >= 1s", op)
+	}
+
+	if c.WarmupTimeout < time.Second*5 {
+		return fmt.Errorf("%s: warmup timeout cannot be >= 5s", op)
 	}
 
 	return nil

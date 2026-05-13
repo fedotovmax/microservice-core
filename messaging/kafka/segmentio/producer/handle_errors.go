@@ -32,15 +32,14 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 			wrapper.Span.SetStatus(codes.Error, msg.Err.Error())
 
 			traceCtx = trace.ContextWithSpan(context.Background(), wrapper.Span)
+			durationSeconds := time.Since(wrapper.StartTime).Seconds()
+
+			if withMetrics {
+				p.metrics.RecordDuration(traceCtx, msg.Msg.Topic, durationSeconds)
+				p.metrics.RecordMessage(traceCtx, msg.Msg.Topic, kafka.MetricsConsumerHandlerStatusError)
+			}
 
 			wrapper.Span.End()
-			if withMetrics {
-				p.metrics.RecordDuration(traceCtx, msg.Msg.Topic, float64(time.Since(wrapper.StartTime).Milliseconds()))
-			}
-		}
-
-		if withMetrics {
-			p.metrics.RecordError(traceCtx, msg.Msg.Topic)
 		}
 
 		// Извлекаем сохраненную ошибку и метаданные
