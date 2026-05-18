@@ -16,8 +16,6 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 	const op = "core.messaging.kafka.sarama.producer.HandleSuccesses"
 	log := p.log.With(logger.String("op", op))
 
-	withMetrics := p.withMetrics()
-
 	for msg := range p.ap.Successes() {
 		meta := msg.Metadata
 
@@ -35,9 +33,9 @@ func (p *producer) HandleSuccesses(timeout time.Duration, onSuccess kafka.OnSucc
 			traceCtx = trace.ContextWithSpan(context.Background(), wrapper.Span)
 			durationSeconds := time.Since(wrapper.StartTime).Seconds()
 
-			if withMetrics {
-				p.metrics.RecordDuration(traceCtx, msg.Topic, durationSeconds)
-				p.metrics.RecordMessage(traceCtx, msg.Topic, kafka.MetricsConsumerHandlerStatusSuccess)
+			if p.withMetrics {
+				kafka.RecordProducerSendDuration(traceCtx, msg.Topic, durationSeconds)
+				kafka.RecordProducerMessage(traceCtx, msg.Topic, kafka.MetricsConsumerHandlerStatusSuccess)
 			}
 
 			wrapper.Span.End() // Успешно закрываем спан!

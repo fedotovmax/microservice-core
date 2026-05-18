@@ -36,12 +36,18 @@ func (c consumerHandlerHeadersCarrier) Keys() []string {
 	return keys
 }
 
-func ConsumerTracingMiddleware() kafka.Middleware {
+func ConsumerTelemetryMiddleware(enableMetrics bool) kafka.Middleware {
 	return func(next kafka.MessageHandler) kafka.MessageHandler {
 
-		metrics, err := kafka.NewConsumerMetrics()
-		if err != nil {
-			metrics = nil
+		var withMetrics bool
+
+		if enableMetrics {
+			err := kafka.InitConsumerMetrics()
+			if err != nil {
+				withMetrics = false
+			} else {
+				withMetrics = true
+			}
 		}
 
 		return func(ctx context.Context, msg kafka.ConsumeMessage) error {
@@ -55,11 +61,11 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 
 			ctxWithSpan, span := telemetry.StartPlatformSpan(
 				extractedCtx,
-				kafka.PlatformTelemetryConsumer,
+				kafka.PlatformTraceConsumer,
 				kafka.TraceConsumeTopic(msg.Topic()),
 				trace.WithSpanKind(trace.SpanKindConsumer),
 				trace.WithAttributes(
-					semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
+					semconv.MessagingSystemKey.String(kafka.TelemetryKey),
 					semconv.MessagingDestinationName(msg.Topic()),
 					semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset(), 10)),
 					semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key())),
@@ -103,9 +109,9 @@ func ConsumerTracingMiddleware() kafka.Middleware {
 				}
 			}
 
-			if metrics != nil {
-				metrics.RecordMessage(ctxWithSpan, msg.Topic(), status, errType)
-				metrics.RecordProcessingTime(ctxWithSpan, msg.Topic(), elapsedSeconds)
+			if withMetrics {
+				kafka.RecordConsumerMessage(ctxWithSpan, msg.Topic(), status, errType)
+				kafka.RecordConsumerProcessingTime(ctxWithSpan, msg.Topic(), elapsedSeconds)
 			}
 			return nil
 		}

@@ -9,13 +9,14 @@ import (
 
 // Системные константы для OTel
 const (
-	TraceSystemKey = "kafka"
-	TelemetryKafka = "kafka"
+	TelemetryKey = "kafka"
 )
 
 const (
-	PlatformTelemetryProducer = TelemetryKafka + ".producer"
-	PlatformTelemetryConsumer = TelemetryKafka + ".consumer"
+	PlatformTraceProducer   = TelemetryKey + ".producer"
+	PlatformTraceConsumer   = TelemetryKey + ".consumer"
+	PlatformMetricsConsumer = TelemetryKey + "_consumer"
+	PlatformMetricsProducer = TelemetryKey + "_producer"
 )
 
 // Хелперы для имен спанов (теперь без дублирования префиксов)

@@ -23,7 +23,7 @@ func createOnMark(ctx context.Context, tracer trace.Tracer) onMarkFunc {
 				kafka.TraceConsumerHandleMark(msg.Topic),
 				trace.WithSpanKind(trace.SpanKindConsumer),
 				trace.WithAttributes(
-					semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
+					semconv.MessagingSystemKey.String(kafka.TelemetryKey),
 					semconv.MessagingDestinationName(msg.Topic),
 					semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset, 10)),
 					semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key)),

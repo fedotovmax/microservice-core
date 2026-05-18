@@ -31,7 +31,7 @@ func (p *producer) Send(ctx context.Context, msg kafka.Message) error {
 	// 2. Если трейсинг включен — дорабатываем сообщение
 	if withTracing {
 		spanAttrs := []attribute.KeyValue{
-			semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
+			semconv.MessagingSystemKey.String(kafka.TelemetryKey),
 			semconv.MessagingDestinationName(msg.Topic()),
 			semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key())),
 		}

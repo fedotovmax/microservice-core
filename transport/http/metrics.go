@@ -1,5 +1,5 @@
 package http
 
 const (
-	MetricsHTTPServerRequestDuration = "http.server.request.duration"
+	MetricsHTTPServerRequestDuration = "http_server_request_duration"
 )

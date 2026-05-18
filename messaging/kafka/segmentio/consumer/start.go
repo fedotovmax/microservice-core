@@ -15,7 +15,7 @@ func (c *group) Start(p kafka.ConsumerGroupStartReadParams, onConsumeError kafka
 	p.MessageHandler = kafka.ChainMiddlewares(p.MessageHandler, p.Middlewares...)
 
 	if c.config.Telemetry {
-		p.MessageHandler = middlewares.ConsumerTracingMiddleware()(p.MessageHandler)
+		p.MessageHandler = middlewares.ConsumerTelemetryMiddleware(c.config.Telemetry)(p.MessageHandler)
 	}
 
 	warmupDone := make(chan struct{})

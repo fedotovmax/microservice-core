@@ -12,7 +12,6 @@ type Config struct {
 	MinRetryBackoff     time.Duration
 	MaxConnLifetime     time.Duration
 	MaxIdleConnLifetime time.Duration
-	PubSubRetryWaitFrom time.Duration
 	Addr                string
 	Password            string
 	DB                  int
@@ -70,19 +69,12 @@ func WithMaxIdleConns(n int) ConfigOption {
 	}
 }
 
-func WithPubSubRetryWaitFrom(t time.Duration) ConfigOption {
-	return func(c *Config) {
-		c.PubSubRetryWaitFrom = t
-	}
-}
-
 func defaultConfig() Config {
 	return Config{
 		MaxRetryBackoff:     100 * time.Second,
 		MinRetryBackoff:     1 * time.Second,
 		MaxConnLifetime:     60 * time.Minute,
 		MaxIdleConnLifetime: 10 * time.Minute,
-		PubSubRetryWaitFrom: 3 * time.Second,
 		MaxRetries:          5,
 		PoolSize:            20,
 		MaxIdleConns:        5,

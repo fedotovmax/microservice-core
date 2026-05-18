@@ -21,7 +21,7 @@ type groupHandler struct {
 	maxProcessingTime time.Duration
 	log               logger.Logger
 	onMark            onMarkFunc
-	metrics           *kafka.ConsumerMetrics
+	withMetrics       bool
 }
 
 func newGroupHandler(
@@ -34,20 +34,20 @@ func newGroupHandler(
 	p.MessageHandler = kafka.ChainMiddlewares(p.MessageHandler, p.Middlewares...)
 
 	var onMark onMarkFunc
-
-	var metrics *kafka.ConsumerMetrics
+	var withMetrics bool
 
 	// 2. Оборачиваем в НАШ трейсинг (он будет самым внешним и первым перехватит контекст)
 	if telemetry {
 
-		p.MessageHandler = middlewares.ConsumerTracingMiddleware()(p.MessageHandler)
+		p.MessageHandler = middlewares.ConsumerTelemetryMiddleware(telemetry)(p.MessageHandler)
 
 		onMark = createOnMark()
 
-		var err error
-		metrics, err = kafka.NewConsumerMetrics()
+		err := kafka.InitConsumerInfraMetrics()
 		if err != nil {
 			log.Error("failed to init consumer metrics", logger.Err(err))
+		} else {
+			withMetrics = true
 		}
 	}
 
@@ -58,7 +58,7 @@ func newGroupHandler(
 		maxProcessingTime: maxProcTime,
 		log:               log,
 		onMark:            onMark,
-		metrics:           metrics,
+		withMetrics:       withMetrics,
 	}
 }
 

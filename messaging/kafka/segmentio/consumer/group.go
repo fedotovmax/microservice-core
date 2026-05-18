@@ -22,54 +22,64 @@ type group struct {
 	config      kafka.GroupConfig
 	stopOnce    sync.Once
 	tracer      trace.Tracer
-	metrics     *kafka.ConsumerInfraMetrics
+	withMetrics bool
 }
+
+var (
+	cg      kafka.ConsumerGroup
+	once    sync.Once
+	initErr error
+)
 
 func NewGroup(log logger.Logger, config kafka.GroupConfig) (kafka.ConsumerGroup, error) {
 
 	const op = "core.messaging.kafka.segmentio.consumer.NewGroup"
 
-	r := skafka.NewReader(skafka.ReaderConfig{
-		Brokers:     config.Brokers,
-		GroupID:     config.GroupID,
-		GroupTopics: config.Topics, // Поддержка нескольких топиков
-		Dialer: &skafka.Dialer{
-			Timeout: config.DialTimeout,
-		},
+	once.Do(func() {
+		r := skafka.NewReader(skafka.ReaderConfig{
+			Brokers:     config.Brokers,
+			GroupID:     config.GroupID,
+			GroupTopics: config.Topics, // Поддержка нескольких топиков
+			Dialer: &skafka.Dialer{
+				Timeout: config.DialTimeout,
+			},
 
-		ReadBatchTimeout:      config.ReadTimeout,
-		SessionTimeout:        config.SessionTimeout,
-		RebalanceTimeout:      config.RebalanceTimeout,
-		HeartbeatInterval:     config.HeartbeatInterval,
-		StartOffset:           skafka.FirstOffset,
-		WatchPartitionChanges: true,
+			ReadBatchTimeout:      config.ReadTimeout,
+			SessionTimeout:        config.SessionTimeout,
+			RebalanceTimeout:      config.RebalanceTimeout,
+			HeartbeatInterval:     config.HeartbeatInterval,
+			StartOffset:           skafka.FirstOffset,
+			WatchPartitionChanges: true,
+		})
+
+		stopCtx, stopCtxFunc := context.WithCancel(context.Background())
+
+		c := &group{
+			log:         log,
+			reader:      r,
+			isStopped:   make(chan struct{}),
+			errCh:       make(chan error, 128),
+			stopCtx:     stopCtx,
+			stopCtxFunc: stopCtxFunc,
+			config:      config,
+		}
+
+		if config.Telemetry {
+			c.tracer = telemetry.CreatePlatformTrace(kafka.PlatformTraceConsumer)
+			err := kafka.InitConsumerInfraMetrics()
+
+			if err != nil {
+				initErr = fmt.Errorf("%s: failed to init metrics: %w", op, err)
+				return
+			}
+			c.withMetrics = true
+		}
+		cg = c
 	})
 
-	stopCtx, stopCtxFunc := context.WithCancel(context.Background())
-
-	c := &group{
-		log:         log,
-		reader:      r,
-		isStopped:   make(chan struct{}),
-		errCh:       make(chan error, 128),
-		stopCtx:     stopCtx,
-		stopCtxFunc: stopCtxFunc,
-		config:      config,
+	if initErr != nil {
+		return nil, initErr
 	}
 
-	if config.Telemetry {
-		c.tracer = telemetry.CreatePlatformTrace(kafka.PlatformTelemetryConsumer)
-		metrics, err := kafka.NewConsumerInfraMetrics()
-
-		if err != nil {
-			return nil, fmt.Errorf("%s: failed to init metrics: %w", op, err)
-		}
-		c.metrics = metrics
-	}
-
-	return c, nil
-}
-
-func (c *group) withMetrics() bool {
-	return c.metrics != nil
+	return cg, nil
 }

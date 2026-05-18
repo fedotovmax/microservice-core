@@ -19,11 +19,11 @@ func createOnMark() onMarkFunc {
 
 		_, span := telemetry.StartPlatformSpan(
 			msgCtx,
-			kafka.PlatformTelemetryConsumer,
+			kafka.PlatformTraceConsumer,
 			kafka.TraceConsumerHandleMark(msg.Topic),
 			trace.WithSpanKind(trace.SpanKindConsumer),
 			trace.WithAttributes(
-				semconv.MessagingSystemKey.String(kafka.TraceSystemKey),
+				semconv.MessagingSystemKey.String(kafka.TelemetryKey),
 				semconv.MessagingDestinationName(msg.Topic),
 				semconv.MessagingMessageIDKey.String(strconv.FormatInt(msg.Offset, 10)),
 				semconv.MessagingKafkaMessageKeyKey.String(string(msg.Key)),

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/fedotovmax/microservice-core/messaging/kafka"
 )
 
 func (c *group) autoCommit(ctx context.Context, tracker *offsetTracker) {
@@ -24,8 +26,8 @@ func (c *group) autoCommit(ctx context.Context, tracker *offsetTracker) {
 				if errors.Is(err, context.Canceled) {
 					return
 				}
-				if c.withMetrics() {
-					c.metrics.RecordCommitError(ctx)
+				if c.withMetrics {
+					kafka.RecordCommitError(ctx)
 				}
 				select {
 				case c.errCh <- fmt.Errorf("%s: auto-commit error: %w", op, err):

@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -10,114 +11,114 @@ import (
 )
 
 // ==========================================
+// CONSTANTS (Имена метрик)
+// ==========================================
+
+const (
+	MetricsKafkaConsumerFetchErrors        = PlatformMetricsConsumer + "_fetch_errors"
+	MetricsKafkaConsumerCommitErrors       = PlatformMetricsConsumer + "_commit_errors"
+	MetricsKafkaConsumerMessagesTotal      = PlatformMetricsConsumer + "_messages_total"
+	MetricsKafkaConsumerProcessingDuration = PlatformMetricsConsumer + "_processing_duration"
+	MetricsKafkaProducerMessagesTotal      = PlatformMetricsProducer + "_messages_total"
+	MetricsKafkaProducerSendDuration       = PlatformMetricsProducer + "_send_duration"
+)
+
+// ==========================================
 // CONSUMER INFRA METRICS
 // ==========================================
 
-type ConsumerInfraMetrics struct {
-	fetchErrors metric.Int64Counter
+var (
+	initConsumerInfraOnce sync.Once
+	initConsumerInfraErr  error
 
+	fetchErrors  metric.Int64Counter
 	commitErrors metric.Int64Counter
-}
-
-const (
-	MetricsKafkaConsumerFetchErrors  = "kafka.consumer.fetch.errors"
-	MetricsKafkaConsumerCommitErrors = "kafka.consumer.commit.errors"
 )
 
-func NewConsumerInfraMetrics() (*ConsumerInfraMetrics, error) {
+func InitConsumerInfraMetrics() error {
+	initConsumerInfraOnce.Do(func() {
+		const op = "core.messaging.kafka.InitConsumerInfraMetrics"
+		meter := otel.Meter(PlatformMetricsConsumer)
 
-	const op = "core.messaging.kafka.NewConsumerInfraMetrics"
+		fe, err := meter.Int64Counter(MetricsKafkaConsumerFetchErrors,
+			metric.WithDescription("Total number of fetch errors"),
+		)
+		if err != nil {
+			initConsumerInfraErr = fmt.Errorf("%s: failed to create fetch errors counter: %w", op, err)
+			return
+		}
 
-	meter := otel.Meter(PlatformTelemetryConsumer)
+		ce, err := meter.Int64Counter(MetricsKafkaConsumerCommitErrors,
+			metric.WithDescription("Total number of commit errors"),
+		)
+		if err != nil {
+			initConsumerInfraErr = fmt.Errorf("%s: failed to create commit errors counter: %w", op, err)
+			return
+		}
 
-	fetchErrors, err := meter.Int64Counter(MetricsKafkaConsumerFetchErrors,
+		fetchErrors = fe
+		commitErrors = ce
+	})
 
-		metric.WithDescription("Total number of fetch errors"),
-	)
-
-	if err != nil {
-
-		return nil, fmt.Errorf("%s: failed to create fetch errors counter: %w", op, err)
-
-	}
-
-	commitErrors, err := meter.Int64Counter(MetricsKafkaConsumerCommitErrors,
-
-		metric.WithDescription("Total number of commit errors"),
-	)
-
-	if err != nil {
-
-		return nil, fmt.Errorf("%s: failed to create commit errors counter: %w", op, err)
-
-	}
-
-	return &ConsumerInfraMetrics{
-
-		fetchErrors: fetchErrors,
-
-		commitErrors: commitErrors,
-	}, nil
-
+	return initConsumerInfraErr
 }
 
-func (m *ConsumerInfraMetrics) RecordFetchError(ctx context.Context) {
-
-	m.fetchErrors.Add(ctx, 1)
-
+func RecordFetchError(ctx context.Context) {
+	if fetchErrors != nil {
+		fetchErrors.Add(ctx, 1)
+	}
 }
 
-func (m *ConsumerInfraMetrics) RecordCommitError(ctx context.Context) {
-
-	m.commitErrors.Add(ctx, 1)
-
+func RecordCommitError(ctx context.Context) {
+	if commitErrors != nil {
+		commitErrors.Add(ctx, 1)
+	}
 }
 
 // ==========================================
 // CONSUMER METRICS
 // ==========================================
 
-type ConsumerMetrics struct {
-	messagesTotal  metric.Int64Counter
-	processingTime metric.Float64Histogram
-}
+var (
+	initConsumerMetricsOnce sync.Once
+	initConsumerMetricsErr  error
 
-const (
-	MetricsKafkaConsumerMessagesTotal      = "kafka.consumer.messages.total"
-	MetricsKafkaConsumerProcessingDuration = "kafka.consumer.processing.duration"
+	consumerMessagesTotal  metric.Int64Counter
+	consumerProcessingTime metric.Float64Histogram
 )
 
-func NewConsumerMetrics() (*ConsumerMetrics, error) {
-	const op = "core.messaging.kafka.NewConsumerMetrics"
+func InitConsumerMetrics() error {
+	initConsumerMetricsOnce.Do(func() {
+		const op = "core.messaging.kafka.InitConsumerMetrics"
+		meter := otel.Meter(PlatformTraceConsumer)
 
-	meter := otel.Meter(PlatformTelemetryConsumer)
+		mt, err := meter.Int64Counter(MetricsKafkaConsumerMessagesTotal,
+			metric.WithDescription("Total number of processed messages (success and errors)"),
+		)
+		if err != nil {
+			initConsumerMetricsErr = fmt.Errorf("%s: failed to create messages total counter: %w", op, err)
+			return
+		}
 
-	messagesTotal, err := meter.Int64Counter(MetricsKafkaConsumerMessagesTotal,
-		metric.WithDescription("Total number of processed messages (success and errors)"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%s: failed to create messages total counter: %w", op, err)
-	}
+		pt, err := meter.Float64Histogram(MetricsKafkaConsumerProcessingDuration,
+			metric.WithDescription("Message processing duration in seconds"),
+			metric.WithUnit("s"), // OTel Standard: секунды
+		)
+		if err != nil {
+			initConsumerMetricsErr = fmt.Errorf("%s: failed to create processing duration histogram: %w", op, err)
+			return
+		}
 
-	processingTime, err := meter.Float64Histogram(MetricsKafkaConsumerProcessingDuration,
-		metric.WithDescription("Message processing duration in seconds"),
-		metric.WithUnit("s"), // OTel Standard: секунды
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%s: failed to create processing duration histogram: %w", op, err)
-	}
+		consumerMessagesTotal = mt
+		consumerProcessingTime = pt
+	})
 
-	return &ConsumerMetrics{
-		messagesTotal:  messagesTotal,
-		processingTime: processingTime,
-	}, nil
+	return initConsumerMetricsErr
 }
 
 type MetricsConsumerHandlerErrorAttr string
 
-func (attr MetricsConsumerHandlerErrorAttr) String() string {
-	return string(attr)
-}
+func (attr MetricsConsumerHandlerErrorAttr) String() string { return string(attr) }
 
 const (
 	MetricsConsumerHandlerErrorNone      MetricsConsumerHandlerErrorAttr = "none"
@@ -127,87 +128,90 @@ const (
 
 type MetricsStatusAttr string
 
-func (attr MetricsStatusAttr) String() string {
-	return string(attr)
-}
+func (attr MetricsStatusAttr) String() string { return string(attr) }
 
 const (
 	MetricsConsumerHandlerStatusError   MetricsStatusAttr = "error"
 	MetricsConsumerHandlerStatusSuccess MetricsStatusAttr = "success"
 )
 
-// RecordMessage записывает и успех, и ошибку в одну метрику с разными лейблами
-func (m *ConsumerMetrics) RecordMessage(
+func RecordConsumerMessage(
 	ctx context.Context,
 	topic string,
 	status MetricsStatusAttr,
 	errType MetricsConsumerHandlerErrorAttr,
 ) {
-	m.messagesTotal.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("topic", topic),
-		attribute.String("status", status.String()),      // "success" или "error"
-		attribute.String("error_type", errType.String()), // "none", "no_retry", "retryable"
-	))
+	if consumerMessagesTotal != nil {
+		consumerMessagesTotal.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("topic", topic),
+			attribute.String("status", status.String()),
+			attribute.String("error_type", errType.String()),
+		))
+	}
 }
 
-func (m *ConsumerMetrics) RecordProcessingTime(ctx context.Context, topic string, seconds float64) {
-	m.processingTime.Record(ctx, seconds, metric.WithAttributes(
-		attribute.String("topic", topic),
-	))
+func RecordConsumerProcessingTime(ctx context.Context, topic string, seconds float64) {
+	if consumerProcessingTime != nil {
+		consumerProcessingTime.Record(ctx, seconds, metric.WithAttributes(
+			attribute.String("topic", topic),
+		))
+	}
 }
 
 // ==========================================
 // PRODUCER METRICS
 // ==========================================
 
-type ProducerMetrics struct {
-	messagesTotal metric.Int64Counter
-	sendDuration  metric.Float64Histogram
-}
+var (
+	initProducerMetricsOnce sync.Once
+	initProducerMetricsErr  error
 
-const (
-	MetricsKafkaProducerMessagesTotal = "kafka.producer.messages.total"
-	MetricsKafkaProducerSendDuration  = "kafka.producer.send.duration"
+	producerMessagesTotal metric.Int64Counter
+	producerSendDuration  metric.Float64Histogram
 )
 
-func NewProducerMetrics() (*ProducerMetrics, error) {
-	const op = "core.messaging.kafka.NewProducerMetrics"
+func InitProducerMetrics() error {
+	initProducerMetricsOnce.Do(func() {
+		const op = "core.messaging.kafka.InitProducerMetrics"
+		meter := otel.Meter(PlatformTraceProducer)
 
-	meter := otel.Meter(PlatformTelemetryProducer)
+		mt, err := meter.Int64Counter(MetricsKafkaProducerMessagesTotal,
+			metric.WithDescription("Total number of messages sent (success and errors)"),
+		)
+		if err != nil {
+			initProducerMetricsErr = fmt.Errorf("%s: failed to create messages total counter: %w", op, err)
+			return
+		}
 
-	messagesTotal, err := meter.Int64Counter(MetricsKafkaProducerMessagesTotal,
-		metric.WithDescription("Total number of messages sent (success and errors)"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%s: failed to create messages total counter: %w", op, err)
+		sd, err := meter.Float64Histogram(MetricsKafkaProducerSendDuration,
+			metric.WithDescription("Duration from Send to Completion callback in seconds"),
+			metric.WithUnit("s"), // OTel Standard: секунды
+		)
+		if err != nil {
+			initProducerMetricsErr = fmt.Errorf("%s: failed to create send duration histogram: %w", op, err)
+			return
+		}
+
+		producerMessagesTotal = mt
+		producerSendDuration = sd
+	})
+
+	return initProducerMetricsErr
+}
+
+func RecordProducerMessage(ctx context.Context, topic string, status MetricsStatusAttr) {
+	if producerMessagesTotal != nil {
+		producerMessagesTotal.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("topic", topic),
+			attribute.String("status", status.String()),
+		))
 	}
+}
 
-	sendDuration, err := meter.Float64Histogram(MetricsKafkaProducerSendDuration,
-		metric.WithDescription("Duration from Send to Completion callback in seconds"),
-		metric.WithUnit("s"), // OTel Standard: секунды
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%s: failed to create send duration histogram: %w", op, err)
+func RecordProducerSendDuration(ctx context.Context, topic string, seconds float64) {
+	if producerSendDuration != nil {
+		producerSendDuration.Record(ctx, seconds, metric.WithAttributes(
+			attribute.String("topic", topic),
+		))
 	}
-
-	return &ProducerMetrics{
-		messagesTotal: messagesTotal,
-		sendDuration:  sendDuration,
-	}, nil
 }
-
-func (m *ProducerMetrics) RecordMessage(ctx context.Context, topic string, status MetricsStatusAttr) {
-	m.messagesTotal.Add(ctx, 1, metric.WithAttributes(
-		attribute.String("topic", topic),
-		attribute.String("status", status.String()), // "success" или "error"
-	))
-}
-
-func (m *ProducerMetrics) RecordDuration(ctx context.Context, topic string, seconds float64) {
-	m.sendDuration.Record(ctx, seconds, metric.WithAttributes(
-		attribute.String("topic", topic),
-	))
-}
-
-// ConsumerInfraMetrics оставляем без изменений (Fetch/Commit Errors),
-// так как они не привязаны к конкретному сообщению.

@@ -9,22 +9,22 @@ import (
 
 var ErrServiceUnavailable = errors.New("circuit breaker is open")
 
-type State int
+type CBState int
 
 const (
-	StateClosed State = iota
-	StateOpen
-	StateHalfOpen
+	CBStateClosed CBState = iota
+	CBStateOpen
+	CBStateHalfOpen
 )
 
-func (s State) String() string {
+func (s CBState) String() string {
 
 	switch s {
-	case StateClosed:
+	case CBStateClosed:
 		return "Closed"
-	case StateOpen:
+	case CBStateOpen:
 		return "Open"
-	case StateHalfOpen:
+	case CBStateHalfOpen:
 		return "Half-Open"
 	default:
 		return "Unsupported curcuit breaker state"
@@ -37,7 +37,8 @@ type CBSettings struct {
 	SuccessThreshold int
 	ResetTimeout     time.Duration
 	MaxHalfOpenCalls int
-	OnStateChange    func(from, to State)
+	OnStateChange    func(from, to CBState)
+	IsIgnorable      func(err error) bool
 }
 
 type CircuitBreaker interface {
@@ -48,14 +49,14 @@ type circuitBreaker struct {
 	settings CBSettings
 	mu       sync.Mutex
 
-	state           State
+	state           CBState
 	failureCount    int
 	successCount    int
 	activeRequests  int
 	lastFailureTime time.Time
 }
 
-func NewCircuitBreaker(st CBSettings) *circuitBreaker {
+func NewCircuitBreaker(st CBSettings) CircuitBreaker {
 	if st.MaxHalfOpenCalls <= 0 {
 		st.MaxHalfOpenCalls = 1
 	}
@@ -80,7 +81,7 @@ func (cb *circuitBreaker) Execute(op func() error) (err error) {
 	return err
 }
 
-func (cb *circuitBreaker) setState(newState State) {
+func (cb *circuitBreaker) setState(newState CBState) {
 	if cb.state == newState {
 		return
 	}
@@ -97,16 +98,16 @@ func (cb *circuitBreaker) beforeCall() error {
 
 	now := time.Now()
 	switch cb.state {
-	case StateOpen:
+	case CBStateOpen:
 		if now.Sub(cb.lastFailureTime) > cb.settings.ResetTimeout {
-			cb.setState(StateHalfOpen)
+			cb.setState(CBStateHalfOpen)
 			cb.failureCount = 0
 			cb.successCount = 0
 			cb.activeRequests = 1
 			return nil
 		}
 		return ErrServiceUnavailable
-	case StateHalfOpen:
+	case CBStateHalfOpen:
 		if cb.activeRequests >= cb.settings.MaxHalfOpenCalls {
 			return ErrServiceUnavailable
 		}
@@ -121,27 +122,44 @@ func (cb *circuitBreaker) afterCall(err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	if cb.state == StateHalfOpen {
+	// Освобождаем слот конкурентности для состояния Half-Open
+	if cb.state == CBStateHalfOpen {
 		cb.activeRequests--
 	}
 
-	if err != nil {
+	// 1. Проверяем, является ли ошибка системным сбоем
+	isFailure := err != nil
+	if isFailure && cb.settings.IsIgnorable != nil && cb.settings.IsIgnorable(err) {
+		// Ошибка есть, но мы её прощаем (например, 400 Bad Request или 404 Not Found).
+		// Для предохранителя это означает, что целевой сервис ЖИВ и работает штатно.
+		isFailure = false
+	}
+
+	// 2. Логика СБОЯ
+	if isFailure {
 		cb.failureCount++
 		cb.lastFailureTime = time.Now()
-		if cb.state == StateHalfOpen || cb.failureCount >= cb.settings.FailureThreshold {
-			cb.setState(StateOpen)
+
+		// Если мы тестировали сервис (Half-Open) и он снова упал,
+		// ИЛИ если мы превысили лимит ошибок в нормальном состоянии (Closed)
+		if cb.state == CBStateHalfOpen || cb.failureCount >= cb.settings.FailureThreshold {
+			cb.setState(CBStateOpen)
 		}
 		return
 	}
 
-	if cb.state == StateHalfOpen {
+	// 3. Логика УСПЕХА (включая "прощенные" ошибки)
+	if cb.state == CBStateHalfOpen {
 		cb.successCount++
+		// Если сервис доказал свою стабильность нужным количеством ответов
 		if cb.successCount >= cb.settings.SuccessThreshold {
-			cb.setState(StateClosed)
+			cb.setState(CBStateClosed)
 			cb.failureCount = 0
 			cb.successCount = 0
 		}
 	} else {
+		// Если мы в Closed и запрос успешен (или прощен) - сбрасываем счетчик ошибок,
+		// так как мы считаем ошибки "подряд" (Consecutive)
 		cb.failureCount = 0
 	}
 }

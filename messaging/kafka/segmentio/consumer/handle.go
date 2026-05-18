@@ -59,8 +59,8 @@ func (c *group) handle(ctx context.Context, onSetup kafka.OnSetup, onCleanUp kaf
 				return
 			}
 
-			if c.withMetrics() {
-				c.metrics.RecordFetchError(ctx)
+			if c.withMetrics {
+				kafka.RecordFetchError(ctx)
 			}
 
 			// Отправляем ошибку инфраструктуры в воркер
@@ -79,12 +79,7 @@ func (c *group) handle(ctx context.Context, onSetup kafka.OnSetup, onCleanUp kaf
 			case <-timer.C:
 				// Таймер истек, пробуем снова
 			case <-ctx.Done():
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
+				timer.Stop()
 				return
 			}
 			continue

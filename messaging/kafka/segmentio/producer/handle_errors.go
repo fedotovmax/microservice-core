@@ -17,8 +17,6 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 
 	log := p.log.With(logger.String("op", op))
 
-	withMetrics := p.withMetrics()
-
 	for msg := range p.errCh {
 
 		meta := msg.Msg.WriterData
@@ -34,9 +32,9 @@ func (p *producer) HandleErrors(timeout time.Duration, onError kafka.OnError) {
 			traceCtx = trace.ContextWithSpan(context.Background(), wrapper.Span)
 			durationSeconds := time.Since(wrapper.StartTime).Seconds()
 
-			if withMetrics {
-				p.metrics.RecordDuration(traceCtx, msg.Msg.Topic, durationSeconds)
-				p.metrics.RecordMessage(traceCtx, msg.Msg.Topic, kafka.MetricsConsumerHandlerStatusError)
+			if p.withMetrics {
+				kafka.RecordProducerSendDuration(traceCtx, msg.Msg.Topic, durationSeconds)
+				kafka.RecordProducerMessage(traceCtx, msg.Msg.Topic, kafka.MetricsConsumerHandlerStatusError)
 			}
 
 			wrapper.Span.End()
