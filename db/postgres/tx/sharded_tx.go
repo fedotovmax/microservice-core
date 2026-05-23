@@ -15,11 +15,6 @@ type shardedManager struct {
 	pool postgres.ShardedPool
 }
 
-// type shardedTransaction struct {
-// 	postgres.Tx
-// 	shardIdx uint32
-// }
-
 func NewSharded(pool postgres.ShardedPool, log logger.Logger) (postgres.TxShardedManager, error) {
 
 	if pool == nil {
@@ -43,7 +38,6 @@ func (m *shardedManager) WrapWithOptions(ctx context.Context, key string, fn fun
 		return fmt.Errorf("%s: pool.Begin: cannot start transaction: %w", op, err)
 	}
 
-	m.mustCheckInit()
 	return m.wrap(ctx, trx, fn)
 
 }
@@ -59,7 +53,6 @@ func (m *shardedManager) Wrap(ctx context.Context, key string, fn func(context.C
 		return fmt.Errorf("%s: pool.Begin: cannot start transaction: %w", op, err)
 	}
 
-	m.mustCheckInit()
 	return m.wrap(ctx, trx, fn)
 
 }
@@ -69,8 +62,6 @@ func (m *shardedManager) WithKey(ctx context.Context, key string) context.Contex
 }
 
 func (m *shardedManager) ExtractTx(ctx context.Context) (postgres.Executor, error) {
-
-	m.mustCheckInit()
 
 	t, ok := ctx.Value(txCtxKey{}).(postgres.Tx)
 
@@ -83,20 +74,6 @@ func (m *shardedManager) ExtractTx(ctx context.Context) (postgres.Executor, erro
 	}
 
 	return nil, tx.ErrNoShardContext
-
-}
-
-func (m *shardedManager) mustCheckInit() {
-
-	const op = "core.db.postgres.tx.Manger.mustCheckInit"
-
-	if m == nil {
-		panic(fmt.Errorf("%s: %w", op, tx.ErrManagerIsNotInit))
-	}
-
-	if m.pool == nil {
-		panic(fmt.Errorf("%s: %w", op, tx.ErrManagerIsNotInit))
-	}
 
 }
 

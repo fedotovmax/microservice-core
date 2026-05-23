@@ -11,48 +11,63 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type ShardedPool struct {
+type shardedPool struct {
 	pools []postgres.Pool
 	mu    sync.RWMutex
 }
 
+var (
+	sharded        postgres.ShardedPool
+	shadrdedOnce   sync.Once
+	shardedInitErr error
+)
+
 func NewSharded(ctx context.Context, config ShardedConfig) (postgres.ShardedPool, error) {
 	const op = "core.db.postgres.pgx.NewSharded"
 
-	pgxpools := make([]*pgxpool.Pool, len(config.Shards)) // фиксированный размер
+	shadrdedOnce.Do(func() {
+		pgxpools := make([]*pgxpool.Pool, len(config.Shards)) // фиксированный размер
 
-	eg, ctx := conc.NewErrGroupWithContext(ctx)
+		eg, ctx := conc.NewErrGroupWithContext(ctx)
 
-	for i, dsn := range config.Shards {
-		eg.Go(func() error {
-			p, err := connectWithRetries(ctx, config.BaseConfig, dsn)
-			if err != nil {
-				return fmt.Errorf("%s: shard [%d] failed: %w", op, i, err)
-			}
-			pgxpools[i] = p // безопасно: каждая горутина пишет в свой индекс
-			return nil
-		})
-	}
-
-	if err := eg.Wait(); err != nil {
-		// закрываем только успешно открытые
-		for _, p := range pgxpools {
-			if p != nil {
-				p.Close()
-			}
+		for i, dsn := range config.Shards {
+			eg.Go(func() error {
+				p, err := connectWithRetries(ctx, config.BaseConfig, dsn)
+				if err != nil {
+					return fmt.Errorf("%s: shard [%d] failed: %w", op, i, err)
+				}
+				pgxpools[i] = p // безопасно: каждая горутина пишет в свой индекс
+				return nil
+			})
 		}
-		return nil, err
+
+		if err := eg.Wait(); err != nil {
+			// закрываем только успешно открытые
+			for _, p := range pgxpools {
+				if p != nil {
+					p.Close()
+				}
+			}
+			shardedInitErr = err
+			return
+		}
+
+		pools := make([]postgres.Pool, len(pgxpools))
+		for i := range pgxpools {
+			pools[i] = &pool{Pool: pgxpools[i]}
+		}
+
+		sharded = &shardedPool{pools: pools}
+	})
+
+	if shardedInitErr != nil {
+		return nil, shardedInitErr
 	}
 
-	pools := make([]postgres.Pool, len(pgxpools))
-	for i := range pgxpools {
-		pools[i] = &pool{Pool: pgxpools[i]}
-	}
-
-	return &ShardedPool{pools: pools}, nil
+	return sharded, nil
 }
 
-func (sp *ShardedPool) PingAll(ctx context.Context) error {
+func (sp *shardedPool) PingAll(ctx context.Context) error {
 
 	eg, ctx := conc.NewErrGroupWithContext(ctx)
 
@@ -68,7 +83,7 @@ func (sp *ShardedPool) PingAll(ctx context.Context) error {
 	return eg.Wait()
 }
 
-func (sp *ShardedPool) AddPool(ctx context.Context, config Config) error {
+func (sp *shardedPool) AddPool(ctx context.Context, config Config) error {
 
 	const op = "core.db.postgres.pgx.ShardedPool.AddPool"
 
@@ -88,7 +103,7 @@ func (sp *ShardedPool) AddPool(ctx context.Context, config Config) error {
 	return nil
 }
 
-func (sp *ShardedPool) RemovePool(ctx context.Context, dsn string) error {
+func (sp *shardedPool) RemovePool(ctx context.Context, dsn string) error {
 
 	const op = "core.db.postgres.pgx.ShardedPool.RemovePool"
 
@@ -108,7 +123,7 @@ func (sp *ShardedPool) RemovePool(ctx context.Context, dsn string) error {
 	return fmt.Errorf("%s: pool with dsn %q not found", op, dsn)
 }
 
-func (sp *ShardedPool) GetPool(key string) postgres.Pool {
+func (sp *shardedPool) GetPool(key string) postgres.Pool {
 	sp.mu.RLock()
 	defer sp.mu.RUnlock()
 	// GetIndex не должен захватывать мьютекс — вычисляем инлайн
@@ -116,20 +131,20 @@ func (sp *ShardedPool) GetPool(key string) postgres.Pool {
 	return sp.pools[idx]
 }
 
-func (sp *ShardedPool) GetPoolByIndex(index uint32) postgres.Pool {
+func (sp *shardedPool) GetPoolByIndex(index uint32) postgres.Pool {
 	sp.mu.RLock()
 	defer sp.mu.RUnlock()
 	return sp.pools[index]
 }
 
-func (sp *ShardedPool) computeIndex(key string) uint32 {
+func (sp *shardedPool) computeIndex(key string) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(key))
 	idx := h.Sum32() % uint32(len(sp.pools))
 	return idx
 }
 
-func (sp *ShardedPool) Stop(ctx context.Context) error {
+func (sp *shardedPool) Stop(ctx context.Context) error {
 
 	const op = "core.db.postgres.pgx.ShardedPool.Stop"
 

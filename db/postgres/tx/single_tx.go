@@ -10,7 +10,7 @@ import (
 	"github.com/fedotovmax/microservice-core/logger"
 )
 
-type manager struct {
+type singleManager struct {
 	log  logger.Logger
 	pool postgres.Pool
 }
@@ -24,17 +24,15 @@ func New(conn postgres.Pool, log logger.Logger) (postgres.TxManager, error) {
 	if conn == nil {
 		return nil, tx.ErrConnRequiredForTx
 	}
-	return &manager{
+	return &singleManager{
 		pool: conn,
 		log:  log,
 	}, nil
 }
 
-func (m *manager) WrapWithOptions(ctx context.Context, fn func(context.Context) error, opt postgres.TxOptions) error {
+func (m *singleManager) WrapWithOptions(ctx context.Context, fn func(context.Context) error, opt postgres.TxOptions) error {
 
 	const op = "core.db.postgres.tx.Manager.WrapWithOptions"
-
-	m.mustCheckInit()
 
 	trx, err := m.pool.BeginTx(ctx, opt)
 	if err != nil {
@@ -44,11 +42,9 @@ func (m *manager) WrapWithOptions(ctx context.Context, fn func(context.Context) 
 	return m.wrap(ctx, trx, fn)
 }
 
-func (m *manager) Wrap(ctx context.Context, fn func(context.Context) error) error {
+func (m *singleManager) Wrap(ctx context.Context, fn func(context.Context) error) error {
 
 	const op = "core.db.postgres.tx.Manager.Wrap"
-
-	m.mustCheckInit()
 
 	trx, err := m.pool.Begin(ctx)
 	if err != nil {
@@ -59,9 +55,7 @@ func (m *manager) Wrap(ctx context.Context, fn func(context.Context) error) erro
 
 }
 
-func (m *manager) ExtractTx(ctx context.Context) postgres.Executor {
-
-	m.mustCheckInit()
+func (m *singleManager) ExtractTx(ctx context.Context) postgres.Executor {
 
 	executor, ok := ctx.Value(txCtxKey{}).(*transaction)
 	if !ok {
@@ -71,21 +65,7 @@ func (m *manager) ExtractTx(ctx context.Context) postgres.Executor {
 	return executor
 }
 
-func (m *manager) mustCheckInit() {
-
-	const op = "core.db.postgres.tx.Manger.mustCheckInit"
-
-	if m == nil {
-		panic(fmt.Errorf("%s: %w", op, tx.ErrManagerIsNotInit))
-	}
-
-	if m.pool == nil {
-		panic(fmt.Errorf("%s: %w", op, tx.ErrManagerIsNotInit))
-	}
-
-}
-
-func (m *manager) wrap(ctx context.Context, trx postgres.Tx, fn func(context.Context) error) error {
+func (m *singleManager) wrap(ctx context.Context, trx postgres.Tx, fn func(context.Context) error) error {
 
 	const op = "core.db.postgres.tx.Manager.wrap"
 

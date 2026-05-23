@@ -3,6 +3,7 @@ package pgx
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/fedotovmax/microservice-core/db/postgres"
 	"github.com/jackc/pgx/v5"
@@ -14,20 +15,36 @@ type pool struct {
 	dsn string
 }
 
+var (
+	psqlpool    postgres.Pool
+	poolOnce    sync.Once
+	poolInitErr error
+)
+
 func New(ctx context.Context, config Config) (postgres.Pool, error) {
 
 	const op = "core.db.postgres.pgx.New"
 
-	pgpool, err := connectWithRetries(ctx, config.BaseConfig, config.Dsn)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
+	poolOnce.Do(func() {
+		pgpool, err := connectWithRetries(ctx, config.BaseConfig, config.Dsn)
+		if err != nil {
+			poolInitErr = fmt.Errorf("%s: %w", op, err)
+			return
+		}
+
+		if pgpool == nil {
+			poolInitErr = fmt.Errorf("%s: postgres connection is empty", op)
+			return
+		}
+
+		psqlpool = &pool{Pool: pgpool, dsn: config.Dsn}
+	})
+
+	if poolInitErr != nil {
+		return nil, poolInitErr
 	}
 
-	if pgpool == nil {
-		return nil, fmt.Errorf("%s: postgres connection is empty", op)
-	}
-
-	return &pool{Pool: pgpool, dsn: config.Dsn}, nil
+	return psqlpool, nil
 
 }
 
