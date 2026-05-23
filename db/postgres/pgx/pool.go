@@ -11,6 +11,7 @@ import (
 
 type pool struct {
 	*pgxpool.Pool
+	dsn string
 }
 
 func New(ctx context.Context, config Config) (postgres.Pool, error) {
@@ -26,8 +27,12 @@ func New(ctx context.Context, config Config) (postgres.Pool, error) {
 		return nil, fmt.Errorf("%s: postgres connection is empty", op)
 	}
 
-	return &pool{Pool: pgpool}, nil
+	return &pool{Pool: pgpool, dsn: config.Dsn}, nil
 
+}
+
+func (p *pool) DSN() string {
+	return p.dsn
 }
 
 func (p *pool) Query(ctx context.Context, sql string, args ...any) (postgres.Rows, error) {
@@ -116,7 +121,6 @@ func (p *pool) Stop(ctx context.Context) error {
 
 	go func() {
 		defer close(done)
-		//p.close()
 		p.Pool.Close()
 	}()
 
@@ -126,5 +130,4 @@ func (p *pool) Stop(ctx context.Context) error {
 	case <-ctx.Done():
 		return fmt.Errorf("%s: %w", op, ctx.Err())
 	}
-
 }

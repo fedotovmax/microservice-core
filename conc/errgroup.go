@@ -27,7 +27,11 @@ func (g *ErrGroup) done() {
 	g.wg.Done()
 }
 
-func WithContext(ctx context.Context) (*ErrGroup, context.Context) {
+func NewErrGroup() *ErrGroup {
+	return &ErrGroup{}
+}
+
+func NewErrGroupWithContext(ctx context.Context) (*ErrGroup, context.Context) {
 	ctx, cancel := context.WithCancelCause(ctx)
 	return &ErrGroup{cancel: cancel}, ctx
 }

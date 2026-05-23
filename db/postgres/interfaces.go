@@ -40,6 +40,7 @@ type TxOptions struct {
 
 type Pool interface {
 	Executor
+	DSN() string
 	Begin(ctx context.Context) (Tx, error)
 	BeginTx(ctx context.Context, txOptions TxOptions) (Tx, error)
 	Ping(ctx context.Context) error
@@ -50,7 +51,6 @@ type Pool interface {
 type ShardedPool interface {
 	GetPool(key string) Pool
 	GetPoolByIndex(index uint32) Pool
-	GetIndex(key string) uint32
 	PingAll(ctx context.Context) error
 	Stop(ctx context.Context) error
 }

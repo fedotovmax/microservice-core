@@ -69,9 +69,9 @@ func WithMaxWaitTime(d time.Duration) GroupOption {
 	}
 }
 
-func WithGroupTelemetry(f bool) GroupOption {
+func WithGroupTelemetry() GroupOption {
 	return func(c *GroupConfig) {
-		c.Telemetry = f
+		c.Telemetry = true
 	}
 }
 

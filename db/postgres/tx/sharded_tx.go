@@ -36,9 +36,7 @@ func (m *shardedManager) WrapWithOptions(ctx context.Context, key string, fn fun
 
 	const op = "core.db.postgres.tx.Manger.WrapWithOptions"
 
-	idx := m.pool.GetIndex(key)
-
-	p := m.pool.GetPoolByIndex(idx)
+	p := m.pool.GetPool(key)
 
 	trx, err := p.BeginTx(ctx, opt)
 	if err != nil {
@@ -54,9 +52,7 @@ func (m *shardedManager) Wrap(ctx context.Context, key string, fn func(context.C
 
 	const op = "core.db.postgres.tx.Manger.Wrap"
 
-	idx := m.pool.GetIndex(key)
-
-	p := m.pool.GetPoolByIndex(idx)
+	p := m.pool.GetPool(key)
 
 	trx, err := p.Begin(ctx)
 	if err != nil {

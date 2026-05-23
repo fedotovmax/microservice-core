@@ -45,9 +45,9 @@ func WithBatchMessagesCount(n int) ProducerOption {
 	}
 }
 
-func WithProducerTelemetry(f bool) ProducerOption {
+func WithProducerTelemetry() ProducerOption {
 	return func(c *ProducerConfig) {
-		c.Telemetry = f
+		c.Telemetry = true
 	}
 }
 
